@@ -15,15 +15,9 @@ import (
 	"github.com/kolobock/rockpi-quad-go/internal/disk"
 	"github.com/kolobock/rockpi-quad-go/internal/fan"
 	"github.com/kolobock/rockpi-quad-go/internal/oled"
-	"periph.io/x/host/v3"
 )
 
 func main() {
-	// Initialize periph.io drivers (GPIO, I2C, etc.)
-	if _, err := host.Init(); err != nil {
-		log.Fatalf("Failed to initialize periph.io: %v", err)
-	}
-
 	// Load configuration
 	cfg, err := config.Load("/etc/rockpi-quad.conf")
 	if err != nil {
@@ -122,7 +116,16 @@ func main() {
 							case "none":
 								// Do nothing
 							default:
-								log.Printf("Unknown button action: %s", action)
+								// Execute custom command via shell
+								log.Printf("Executing custom command: %s", action)
+								go func() {
+									cmd := exec.Command("sh", "-c", action)
+									if err := cmd.Run(); err != nil {
+										log.Printf("Failed to execute command '%s': %v", action, err)
+									} else {
+										log.Printf("Command '%s' executed successfully", action)
+									}
+								}()
 							}
 						}
 					}()

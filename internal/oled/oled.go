@@ -69,7 +69,7 @@ type diskIOStats struct {
 }
 
 func New(cfg *config.Config) (*Controller, error) {
-	// Initialize periph.io host
+	// Initialize periph.io for I2C (not needed for GPIO as we use gpiocdev)
 	if _, err := host.Init(); err != nil {
 		return nil, fmt.Errorf("failed to initialize periph.io: %w", err)
 	}

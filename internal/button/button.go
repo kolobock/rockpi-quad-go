@@ -2,11 +2,12 @@ package button
 
 import (
 	"context"
+	"fmt"
 	"log/syslog"
+	"strings"
 	"time"
 
-	"periph.io/x/conn/v3/gpio"
-	"periph.io/x/conn/v3/gpio/gpioreg"
+	"github.com/warthog618/go-gpiocdev"
 )
 
 // EventType represents the type of button event
@@ -20,11 +21,12 @@ const (
 
 // Controller handles button press monitoring
 type Controller struct {
-	pin         gpio.PinIn
+	line        *gpiocdev.Line
 	pressChan   chan EventType
 	syslogger   *syslog.Writer
 	twiceWindow time.Duration // time window for double-click detection
 	pressTime   time.Duration // time threshold for long-press detection
+	eventChan   chan gpiocdev.LineEvent
 }
 
 // New creates a new button controller using chip and line number
@@ -44,24 +46,26 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 		}, nil
 	}
 
-	// For Rock Pi 4, gpiochip0 line 17 corresponds to GPIO17
-	// Try common GPIO naming patterns
-	pinNames := []string{
-		"GPIO0_C1", // Rock Pi 4 naming
-		"17",       // Line number
-		"GPIO" + line,
+	// Default to gpiochip0 if not specified
+	if chip == "" {
+		chip = "gpiochip0"
 	}
 
-	var pin gpio.PinIn
-	for _, name := range pinNames {
-		pin = gpioreg.ByName(name)
-		if pin != nil {
-			break
-		}
+	// If chip is just a number, prepend "gpiochip"
+	var chipNum int
+	if _, err := fmt.Sscanf(chip, "%d", &chipNum); err == nil {
+		chip = "gpiochip" + chip
 	}
 
-	if pin == nil {
-		syslogger.Warning("Button pin not found for chip " + chip + " line " + line)
+	// Ensure chip path starts with /dev/
+	if !strings.HasPrefix(chip, "/dev/") {
+		chip = "/dev/" + chip
+	}
+
+	// Convert line string to int
+	lineNum := 0
+	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
+		syslogger.Warning("Invalid GPIO line number: " + line)
 		return &Controller{
 			pressChan:   make(chan EventType, 10),
 			syslogger:   syslogger,
@@ -70,29 +74,47 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 		}, nil
 	}
 
-	if err := pin.In(gpio.PullUp, gpio.FallingEdge); err != nil {
-		syslogger.Warning("Failed to setup button pin: " + err.Error())
-		return &Controller{
-			pressChan:   make(chan EventType, 10),
-			syslogger:   syslogger,
-			twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
-			pressTime:   time.Duration(pressTime * float64(time.Second)),
-		}, nil
-	}
-
-	syslogger.Info("Button monitoring enabled on " + pin.Name())
-	return &Controller{
-		pin:         pin,
+	ctrl := &Controller{
 		pressChan:   make(chan EventType, 10),
 		syslogger:   syslogger,
 		twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
 		pressTime:   time.Duration(pressTime * float64(time.Second)),
-	}, nil
+		eventChan:   make(chan gpiocdev.LineEvent, 10),
+	}
+
+	// Create event handler that forwards events to our channel
+	eventHandler := func(evt gpiocdev.LineEvent) {
+		select {
+		case ctrl.eventChan <- evt:
+		default:
+			// Channel full, skip
+		}
+	}
+
+	// Open GPIO chip and request line as input with pull-up and both edge detection
+	l, err := gpiocdev.RequestLine(chip, lineNum,
+		gpiocdev.AsInput,
+		gpiocdev.WithPullUp,
+		gpiocdev.WithBothEdges,
+		gpiocdev.WithEventHandler(eventHandler))
+	if err != nil {
+		syslogger.Warning("Failed to request button line: " + err.Error())
+		return &Controller{
+			pressChan:   make(chan EventType, 10),
+			syslogger:   syslogger,
+			twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
+			pressTime:   time.Duration(pressTime * float64(time.Second)),
+		}, nil
+	}
+
+	ctrl.line = l
+	syslogger.Info("Button monitoring enabled on " + chip + " line " + line)
+	return ctrl, nil
 }
 
 // Run starts monitoring button presses and detects click/double-click/long-press
 func (c *Controller) Run(ctx context.Context) {
-	if c.pin == nil {
+	if c.line == nil {
 		// No button configured, just wait for context cancellation
 		<-ctx.Done()
 		return
@@ -119,47 +141,76 @@ func (c *Controller) Run(ctx context.Context) {
 // detectButtonEvent waits for and detects the type of button press
 func (c *Controller) detectButtonEvent(ctx context.Context) EventType {
 	// Wait for button press (falling edge)
-	if !c.pin.WaitForEdge(200 * time.Millisecond) {
+	select {
+	case <-ctx.Done():
 		return ""
-	}
-
-	// Debounce
-	time.Sleep(50 * time.Millisecond)
-	if c.pin.Read() != gpio.Low {
-		return "" // False trigger
+	case evt := <-c.eventChan:
+		// Check if it's a falling edge (button pressed)
+		if evt.Type != gpiocdev.LineEventFallingEdge {
+			return ""
+		}
+	case <-time.After(200 * time.Millisecond):
+		return ""
 	}
 
 	// Record press start time
 	pressStart := time.Now()
 
-	// Wait for button release or long-press timeout
-	for c.pin.Read() == gpio.Low {
-		if time.Since(pressStart) >= c.pressTime {
-			// Long press detected
-			// Wait for release
-			for c.pin.Read() == gpio.Low {
-				time.Sleep(50 * time.Millisecond)
+	// Wait for button release (rising edge) or long-press timeout
+	for {
+		select {
+		case <-ctx.Done():
+			return ""
+		case evt := <-c.eventChan:
+			if evt.Type == gpiocdev.LineEventRisingEdge {
+				// Button released - check for double-click
+				goto checkDoubleClick
 			}
-			return LongPress
+		case <-time.After(50 * time.Millisecond):
+			if time.Since(pressStart) >= c.pressTime {
+				// Long press detected - wait for release
+				for {
+					select {
+					case <-ctx.Done():
+						return LongPress
+					case evt := <-c.eventChan:
+						if evt.Type == gpiocdev.LineEventRisingEdge {
+							return LongPress
+						}
+					case <-time.After(50 * time.Millisecond):
+						// Continue waiting
+					}
+				}
+			}
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
 
-	// Button was released - now check for double-click
+checkDoubleClick:
 	// Wait for potential second click within the double-click window
 	deadline := time.Now().Add(c.twiceWindow)
 	for time.Now().Before(deadline) {
-		if c.pin.WaitForEdge(deadline.Sub(time.Now())) {
-			// Debounce second click
-			time.Sleep(50 * time.Millisecond)
-			if c.pin.Read() == gpio.Low {
-				// Second click detected
-				// Wait for release
-				for c.pin.Read() == gpio.Low {
-					time.Sleep(50 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return Click
+		case evt := <-c.eventChan:
+			if evt.Type == gpiocdev.LineEventFallingEdge {
+				// Second click detected - wait for release
+				for {
+					select {
+					case <-ctx.Done():
+						return DoubleClick
+					case evt := <-c.eventChan:
+						if evt.Type == gpiocdev.LineEventRisingEdge {
+							return DoubleClick
+						}
+					case <-time.After(50 * time.Millisecond):
+						// Continue waiting
+					}
 				}
-				return DoubleClick
 			}
+		case <-time.After(deadline.Sub(time.Now())):
+			// Timeout - single click
+			return Click
 		}
 	}
 
@@ -174,6 +225,9 @@ func (c *Controller) PressChan() <-chan EventType {
 
 // Close cleans up resources
 func (c *Controller) Close() error {
+	if c.line != nil {
+		c.line.Close()
+	}
 	if c.syslogger != nil {
 		return c.syslogger.Close()
 	}
