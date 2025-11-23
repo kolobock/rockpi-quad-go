@@ -306,7 +306,7 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 	items := []TextItem{}
 	usage := p.ctrl.getDiskUsage()
 
-	y := 8
+	y := 10
 	for i, u := range usage {
 		if i >= 3 {
 			break
@@ -327,9 +327,9 @@ type NetworkIOPage struct {
 func (p *NetworkIOPage) GetPageText() []TextItem {
 	rx, tx := p.ctrl.getNetworkRate(p.iface)
 	return []TextItem{
-		{X: 0, Y: 8, Text: fmt.Sprintf("Net(%s):", p.iface)},
-		{X: 0, Y: 18, Text: fmt.Sprintf("Rx:%.2f MB/s", rx)},
-		{X: 0, Y: 28, Text: fmt.Sprintf("Tx:%.2f MB/s", tx)},
+		{X: 0, Y: 10, Text: fmt.Sprintf("Net(%s):", p.iface)},
+		{X: 0, Y: 20, Text: fmt.Sprintf("Rx:%.2f MB/s", rx)},
+		{X: 0, Y: 30, Text: fmt.Sprintf("Tx:%.2f MB/s", tx)},
 	}
 }
 
@@ -342,9 +342,9 @@ type DiskIOPage struct {
 func (p *DiskIOPage) GetPageText() []TextItem {
 	read, write := p.ctrl.getDiskRate(p.disk)
 	return []TextItem{
-		{X: 0, Y: 8, Text: fmt.Sprintf("Disk(%s):", p.disk)},
-		{X: 0, Y: 18, Text: fmt.Sprintf("R:%.2f MB/s", read)},
-		{X: 0, Y: 28, Text: fmt.Sprintf("W:%.2f MB/s", write)},
+		{X: 0, Y: 10, Text: fmt.Sprintf("Disk(%s):", p.disk)},
+		{X: 0, Y: 20, Text: fmt.Sprintf("R:%.2f MB/s", read)},
+		{X: 0, Y: 30, Text: fmt.Sprintf("W:%.2f MB/s", write)},
 	}
 }
 
@@ -355,13 +355,13 @@ type DiskTempPage struct {
 
 func (p *DiskTempPage) GetPageText() []TextItem {
 	temps := p.ctrl.getDiskTemperatures()
-	items := []TextItem{{X: 0, Y: 8, Text: "Disk Temps:"}}
+	items := []TextItem{{X: 0, Y: 10, Text: "Disk Temps:"}}
 
-	y := 18
+	y := 20
 	for _, temp := range temps {
 		items = append(items, TextItem{X: 0, Y: y, Text: temp})
 		y += 10
-		if y > 28 {
+		if y > 30 {
 			break
 		}
 	}

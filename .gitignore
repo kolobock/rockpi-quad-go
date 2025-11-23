@@ -23,3 +23,6 @@ rockpi-quad
 *.swp
 *.swo
 *~
+
+build/*
+rockpi-quad-go
