@@ -48,7 +48,7 @@ func main() {
 	}()
 
 	// Start button controller
-	buttonCtrl, err := button.New(cfg.Env.ButtonLine)
+	buttonCtrl, err := button.New(cfg.Env.ButtonChip, cfg.Env.ButtonLine)
 	if err != nil {
 		log.Printf("Failed to create button controller: %v", err)
 	}

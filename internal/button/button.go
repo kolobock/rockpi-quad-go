@@ -16,14 +16,14 @@ type Controller struct {
 	syslogger *syslog.Writer
 }
 
-// New creates a new button controller
-func New(pinName string) (*Controller, error) {
+// New creates a new button controller using chip and line number
+func New(chip, line string) (*Controller, error) {
 	syslogger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
 	if err != nil {
 		return nil, err
 	}
 
-	if pinName == "" {
+	if line == "" {
 		syslogger.Info("Button monitoring disabled - no pin configured")
 		return &Controller{
 			pressChan: make(chan struct{}, 10),
@@ -31,9 +31,24 @@ func New(pinName string) (*Controller, error) {
 		}, nil
 	}
 
-	pin := gpioreg.ByName(pinName)
+	// For Rock Pi 4, gpiochip0 line 17 corresponds to GPIO0_C1 (pin 11)
+	// Try common GPIO naming patterns
+	pinNames := []string{
+		"GPIO0_C1", // Rock Pi 4 naming
+		"17",       // Line number
+		"GPIO" + line,
+	}
+
+	var pin gpio.PinIn
+	for _, name := range pinNames {
+		pin = gpioreg.ByName(name)
+		if pin != nil {
+			break
+		}
+	}
+
 	if pin == nil {
-		syslogger.Warning("Button pin not found: " + pinName)
+		syslogger.Warning("Button pin not found for chip " + chip + " line " + line)
 		return &Controller{
 			pressChan: make(chan struct{}, 10),
 			syslogger: syslogger,
@@ -48,7 +63,7 @@ func New(pinName string) (*Controller, error) {
 		}, nil
 	}
 
-	syslogger.Info("Button monitoring enabled on " + pinName)
+	syslogger.Info("Button monitoring enabled on " + pin.Name())
 	return &Controller{
 		pin:       pin,
 		pressChan: make(chan struct{}, 10),
