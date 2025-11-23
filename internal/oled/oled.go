@@ -151,10 +151,12 @@ func (c *Controller) clearImage() {
 }
 
 func (c *Controller) drawText(x, y int, text string) {
-	// Y coordinate is the baseline position
+	// Python PIL draws from top-left corner at (x, y)
+	// Go font.Drawer uses baseline, so we need to add the ascent
+	// basicfont.Face7x13 has Ascent of 11 pixels from baseline
 	point := fixed.Point26_6{
 		X: fixed.I(x),
-		Y: fixed.I(y) + c.font.Metrics().Ascent,
+		Y: fixed.I(y) + fixed.I(11), // Add ascent to convert top to baseline
 	}
 
 	d := &font.Drawer{
@@ -211,7 +213,7 @@ func (c *Controller) showGoodbye() {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.drawText(32, 10, "Good Bye ~")
+	c.drawText(32, 8, "Good Bye ~")
 	c.display()
 	time.Sleep(2 * time.Second)
 	c.clearImage()
@@ -331,9 +333,9 @@ type NetworkIOPage struct {
 func (p *NetworkIOPage) GetPageText() []TextItem {
 	rx, tx := p.ctrl.getNetworkRate(p.iface)
 	return []TextItem{
-		{X: 0, Y: -2, Text: fmt.Sprintf("Net(%s):", p.iface)},
-		{X: 0, Y: 10, Text: fmt.Sprintf("Rx:%.6f MB/s", rx)},
-		{X: 0, Y: 21, Text: fmt.Sprintf("Tx:%.6f MB/s", tx)},
+		{X: 0, Y: -2, Text: fmt.Sprintf("Network (%s):", p.iface)},
+		{X: 0, Y: 10, Text: fmt.Sprintf("Rx:%10.6f MB/s", rx)},
+		{X: 0, Y: 21, Text: fmt.Sprintf("Tx:%10.6f MB/s", tx)},
 	}
 }
 
@@ -346,9 +348,9 @@ type DiskIOPage struct {
 func (p *DiskIOPage) GetPageText() []TextItem {
 	read, write := p.ctrl.getDiskRate(p.disk)
 	return []TextItem{
-		{X: 0, Y: -2, Text: fmt.Sprintf("Disk(%s):", p.disk)},
-		{X: 0, Y: 10, Text: fmt.Sprintf("R:%.6f MB/s", read)},
-		{X: 0, Y: 21, Text: fmt.Sprintf("W:%.6f MB/s", write)},
+		{X: 0, Y: -2, Text: fmt.Sprintf("Disk (%s):", p.disk)},
+		{X: 0, Y: 10, Text: fmt.Sprintf("R:%11.6f MB/s", read)},
+		{X: 0, Y: 21, Text: fmt.Sprintf("W:%11.6f MB/s", write)},
 	}
 }
 

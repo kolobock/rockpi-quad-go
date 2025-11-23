@@ -86,14 +86,15 @@ func (d *SSD1306) init() error {
 	// Initialization sequence for SSD1306
 	cmds := []byte{
 		ssd1306DisplayOff,
+		// Address setting
+		ssd1306MemoryMode, 0x10, // Page Addressing Mode (like CircuitPython default)
+		// Resolution and layout
 		ssd1306SetDisplayClockDiv, 0x80,
 		ssd1306SetMultiplex, byte(d.height - 1),
 		ssd1306SetDisplayOffset, 0x00,
 		ssd1306SetStartLine | 0x00,
-		ssd1306ChargePump, 0x14, // Enable charge pump
-		ssd1306MemoryMode, 0x00, // Horizontal addressing mode
-		ssd1306SegRemap | 0x01, // Flip horizontally
-		ssd1306ComScanDec,      // Flip vertically
+		ssd1306SegRemap | 0x01, // Column addr 127 mapped to SEG0
+		ssd1306ComScanDec,      // Scan from COM[N] to COM0
 	}
 
 	// COM pins configuration depends on display height
@@ -103,13 +104,16 @@ func (d *SSD1306) init() error {
 		cmds = append(cmds, ssd1306SetComPins, 0x12)
 	}
 
-	// Continue with remaining settings
+	// Timing and driving scheme
 	cmds = append(cmds,
-		ssd1306SetContrast, 0x8F,
-		ssd1306SetPrecharge, 0xF1,
-		ssd1306SetVcomDetect, 0x40,
+		ssd1306SetPrecharge, 0xF1, // Internal VCC
+		ssd1306SetVcomDetect, 0x30, // 0.83*Vcc
+		// Display
+		ssd1306SetContrast, 0xFF, // Maximum
 		ssd1306DisplayAllOnResume,
 		ssd1306NormalDisplay,
+		// Charge pump
+		ssd1306ChargePump, 0x14, // Enable (internal VCC)
 		ssd1306DisplayOn,
 	)
 
@@ -119,39 +123,57 @@ func (d *SSD1306) init() error {
 		}
 	}
 
-	return nil
+	// Clear display on init
+	return d.Clear()
 }
 
 // Display updates the OLED display with the contents of the image
 func (d *SSD1306) Display(img *image.Gray) error {
-	// Set column and page address range
-	d.i2c.WriteRegU8(0x00, ssd1306ColumnAddr)
-	d.i2c.WriteRegU8(0x00, 0)               // Column start
-	d.i2c.WriteRegU8(0x00, byte(d.width-1)) // Column end
-	d.i2c.WriteRegU8(0x00, ssd1306PageAddr)
-	d.i2c.WriteRegU8(0x00, 0)                    // Page start
-	d.i2c.WriteRegU8(0x00, byte((d.height/8)-1)) // Page end
-
 	// Convert image to SSD1306 format (pages of 8 vertical pixels)
-	buf := make([]byte, (d.width*d.height/8)+1)
-	buf[0] = 0x40 // Data mode
+	// CircuitPython uses MVLSB format: bits are shifted left, MSB is top pixel
+	buf := make([]byte, d.width*d.height/8)
 
 	for page := 0; page < d.height/8; page++ {
 		for x := 0; x < d.width; x++ {
 			var b byte
+			// Bits are packed with bit 0 = top pixel, bit 7 = bottom pixel
+			// But we shift left, so we build from bit 7 down to bit 0
 			for bit := 0; bit < 8; bit++ {
-				y := page*8 + bit
+				b = b << 1
+				y := page*8 + 7 - bit
 				if img.GrayAt(x, y).Y > 128 {
-					b |= 1 << uint(bit)
+					b |= 1
 				}
 			}
-			buf[1+page*d.width+x] = b
+			buf[page*d.width+x] = b
 		}
 	}
 
-	// Write all data at once
-	_, err := d.i2c.WriteBytes(buf)
-	return err
+	// Write data using Page Addressing Mode (like CircuitPython page_addressing=True)
+	for page := 0; page < d.height/8; page++ {
+		// Set page address (0xB0 + page number)
+		if err := d.i2c.WriteRegU8(0x00, 0xB0|byte(page)); err != nil {
+			return err
+		}
+		// Set column start address (low nibble)
+		if err := d.i2c.WriteRegU8(0x00, byte(d.width%32)); err != nil {
+			return err
+		}
+		// Set column start address (high nibble)
+		if err := d.i2c.WriteRegU8(0x00, byte(0x10+d.width/32)); err != nil {
+			return err
+		}
+
+		// Write page data
+		pageData := make([]byte, d.width+1)
+		pageData[0] = 0x40 // Co=0, D/C=1 (data mode)
+		copy(pageData[1:], buf[page*d.width:(page+1)*d.width])
+		if _, err := d.i2c.WriteBytes(pageData); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Clear clears the display (turns all pixels off)
