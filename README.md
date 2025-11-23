@@ -11,17 +11,36 @@ A Go reimplementation of the RockPi SATA HAT fan and OLED controller.
 - ✅ Syslog support
 - ✅ Inversed polarity support
 - ✅ Minimum duty cycle threshold (7%)
-- 🚧 OLED display (TODO)
+- ✅ OLED display with page cycling
+- ✅ Environment file loading (/etc/rockpi-quad.env)
 - 🚧 Key input handling (TODO)
 
 ## Installation
 
 ```bash
+# Build the binary
 cd rockpi-quad-go
-go build -o rockpi-quad ./cmd/rockpi-quad
-sudo cp rockpi-quad /usr/bin/
-sudo systemctl restart rockpi-quad
+GOOS=linux GOARCH=arm64 go build -o rockpi-quad-go ./cmd/rockpi-quad
+
+# Install on Rock Pi 4
+sudo mkdir -p /usr/bin/rockpi-quad
+sudo cp rockpi-quad-go /usr/bin/rockpi-quad/
+sudo cp rockpi-quad-go.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable rockpi-quad-go
+sudo systemctl start rockpi-quad-go
+
+# Check status
+sudo systemctl status rockpi-quad-go
 ```
+
+## Configuration Files
+
+The application uses the same configuration files as the Python version:
+- `/etc/rockpi-quad.conf` - Application settings
+- `/etc/rockpi-quad.env` - Hardware/GPIO configuration
+
+No changes to existing config files are needed.
 
 ## Dependencies
 
@@ -39,15 +58,53 @@ go mod download
 
 ## Configuration
 
-Uses the same `/etc/rockpi-quad.conf` as the Python version.
+The application uses two configuration files:
+
+### `/etc/rockpi-quad.conf`
+Main configuration file (same format as Python version) containing:
+- Fan temperature thresholds and PWM levels
+- OLED display settings (rotation, temperature unit)
+- Disk monitoring configuration
+- Key/button behavior settings
+
+### `/etc/rockpi-quad.env`
+Environment configuration file (same as Python version) containing hardware-specific settings:
+- I2C pins for OLED (SDA, SCL, OLED_RESET)
+- Button GPIO configuration
+- Fan control GPIO settings
+- SATA LED indicators
+- PWM configuration
+
+**Note:** Both files are shared with the Python version - no changes needed to switch between implementations.
 
 ## Environment Variables
 
-- `HARDWARE_PWM=1` - Enable hardware PWM
-- `PWM_CHIP=pwmchip0` - PWM chip device
-- `PWM_CPU_FAN=0` - CPU fan PWM channel
-- `PWM_TB_FAN=1` - Top/disk fan PWM channel
-- `POLARITY=inversed` - PWM polarity
+The following environment variables are loaded from `/etc/rockpi-quad.env`:
+
+**OLED Display:**
+- `SDA` - I2C data pin (e.g., I2C7_SDA)
+- `SCL` - I2C clock pin (e.g., I2C7_SCL)
+- `OLED_RESET` - OLED reset GPIO (e.g., GPIO4_D2)
+
+**Button:**
+- `BUTTON_CHIP` - GPIO chip number
+- `BUTTON_LINE` - GPIO line number
+
+**Fan Control:**
+- `FAN_CHIP` - GPIO chip for fan control
+- `FAN_LINE` - GPIO line for fan control
+- `HARDWARE_PWM` - Set to "1" to enable hardware PWM
+
+**PWM (when HARDWARE_PWM=1):**
+- `PWM_CHIP` - PWM chip device (default: pwmchip0)
+- `PWM_CPU_FAN` - CPU fan PWM channel
+- `PWM_TB_FAN` - Top/disk fan PWM channel
+- `POLARITY` - PWM polarity (normal/inversed)
+
+**SATA LEDs:**
+- `SATA_CHIP` - GPIO chip for SATA LEDs
+- `SATA_LINE_1` - First SATA LED GPIO line
+- `SATA_LINE_2` - Second SATA LED GPIO line
 
 ## Advantages over Python Version
 

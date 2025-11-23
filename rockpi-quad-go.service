@@ -1,0 +1,14 @@
+[Unit]
+Description=Rockpi SATA Hat (Go Implementation)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/rockpi-quad/rockpi-quad-go
+KillSignal=SIGINT
+EnvironmentFile=/etc/rockpi-quad.env
+Restart=on-failure
+WorkingDirectory=/usr/bin/rockpi-quad
+
+[Install]
+WantedBy=multi-user.target

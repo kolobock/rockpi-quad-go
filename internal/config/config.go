@@ -14,6 +14,21 @@ type Config struct {
 	OLED OLEDConfig
 	Disk DiskConfig
 	Key  KeyConfig
+	Env  EnvConfig
+}
+
+type EnvConfig struct {
+	SDA         string
+	SCL         string
+	OLEDReset   string
+	ButtonChip  string
+	ButtonLine  string
+	FanChip     string
+	FanLine     string
+	HardwarePWM string
+	SATAChip    string
+	SATALine1   string
+	SATALine2   string
 }
 
 type FanConfig struct {
@@ -56,6 +71,20 @@ type KeyConfig struct {
 
 func Load(path string) (*Config, error) {
 	cfg := &Config{}
+
+	// Load environment configuration from OS environment
+	// (systemd loads these from /etc/rockpi-quad.env via EnvironmentFile)
+	cfg.Env.SDA = os.Getenv("SDA")
+	cfg.Env.SCL = os.Getenv("SCL")
+	cfg.Env.OLEDReset = os.Getenv("OLED_RESET")
+	cfg.Env.ButtonChip = os.Getenv("BUTTON_CHIP")
+	cfg.Env.ButtonLine = os.Getenv("BUTTON_LINE")
+	cfg.Env.FanChip = os.Getenv("FAN_CHIP")
+	cfg.Env.FanLine = os.Getenv("FAN_LINE")
+	cfg.Env.HardwarePWM = os.Getenv("HARDWARE_PWM")
+	cfg.Env.SATAChip = os.Getenv("SATA_CHIP")
+	cfg.Env.SATALine1 = os.Getenv("SATA_LINE_1")
+	cfg.Env.SATALine2 = os.Getenv("SATA_LINE_2")
 
 	iniFile, err := ini.Load(path)
 	if err != nil {
