@@ -12,6 +12,7 @@ import (
 
 	"github.com/kolobock/rockpi-quad-go/internal/button"
 	"github.com/kolobock/rockpi-quad-go/internal/config"
+	"github.com/kolobock/rockpi-quad-go/internal/disk"
 	"github.com/kolobock/rockpi-quad-go/internal/fan"
 	"github.com/kolobock/rockpi-quad-go/internal/oled"
 	"periph.io/x/host/v3"
@@ -28,6 +29,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	// Enable SATA controller if no disks detected
+	disk.EnableSATAController(cfg.Env.SATAChip, cfg.Env.SATALine1, cfg.Env.SATALine2)
 
 	// Create context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())

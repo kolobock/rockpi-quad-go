@@ -2,9 +2,14 @@ package disk
 
 import (
 	"fmt"
+	"log"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
+
+	"periph.io/x/conn/v3/gpio"
+	"periph.io/x/conn/v3/gpio/gpioreg"
 )
 
 // GetTemperature reads disk temperature using smartctl
@@ -51,4 +56,50 @@ func GetTemperature(device string) (float64, error) {
 	}
 
 	return temp, nil
+}
+
+// EnableSATAController enables SATA controller GPIO lines if no disks are detected
+func EnableSATAController(sataChip, sataLine1, sataLine2 string) {
+	// Check if any sd* disks are already present
+	cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print $1}'")
+	output, err := cmd.Output()
+	if err == nil && len(strings.TrimSpace(string(output))) > 0 {
+		// Disks already present, no need to toggle power
+		log.Println("SATA disks detected, skipping SATA controller enable")
+		return
+	}
+
+	// No disks detected, enable SATA controller
+	if sataChip == "" || sataLine1 == "" || sataLine2 == "" {
+		log.Println("SATA controller not configured")
+		return
+	}
+
+	log.Println("No SATA disks detected, enabling SATA controller...")
+
+	// Enable SATA_LINE_1
+	if line1 := gpioreg.ByName("GPIO" + sataLine1); line1 != nil {
+		if err := line1.Out(gpio.High); err != nil {
+			log.Printf("Failed to set SATA_LINE_1: %v", err)
+		} else {
+			log.Printf("SATA_LINE_1 (GPIO%s) set to HIGH", sataLine1)
+		}
+	} else {
+		log.Printf("SATA_LINE_1 pin not found: GPIO%s", sataLine1)
+	}
+
+	// Enable SATA_LINE_2
+	if line2 := gpioreg.ByName("GPIO" + sataLine2); line2 != nil {
+		if err := line2.Out(gpio.High); err != nil {
+			log.Printf("Failed to set SATA_LINE_2: %v", err)
+		} else {
+			log.Printf("SATA_LINE_2 (GPIO%s) set to HIGH", sataLine2)
+		}
+	} else {
+		log.Printf("SATA_LINE_2 pin not found: GPIO%s", sataLine2)
+	}
+
+	// Give disks time to spin up
+	time.Sleep(2 * time.Second)
+	log.Println("SATA controller enabled")
 }
