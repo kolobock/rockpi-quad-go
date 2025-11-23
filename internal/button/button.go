@@ -194,13 +194,15 @@ checkDoubleClick:
 			return Click
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventFallingEdge {
-				// Second click detected - wait for release
+				// Second click detected - wait for release and drain channel
 				for {
 					select {
 					case <-ctx.Done():
 						return DoubleClick
 					case evt := <-c.eventChan:
 						if evt.Type == gpiocdev.LineEventRisingEdge {
+							// Drain any remaining events in the channel
+							c.drainEventChannel()
 							return DoubleClick
 						}
 					case <-time.After(50 * time.Millisecond):
@@ -216,6 +218,19 @@ checkDoubleClick:
 
 	// No second click - it's a single click
 	return Click
+}
+
+// drainEventChannel clears any pending events from the event channel
+func (c *Controller) drainEventChannel() {
+	for {
+		select {
+		case <-c.eventChan:
+			// Drain the event
+		default:
+			// Channel is empty
+			return
+		}
+	}
 }
 
 // PressChan returns the channel that receives button press events
