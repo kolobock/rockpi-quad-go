@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kolobock/rockpi-quad-go/internal/button"
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/kolobock/rockpi-quad-go/internal/fan"
 	"github.com/kolobock/rockpi-quad-go/internal/oled"
@@ -46,6 +47,20 @@ func main() {
 		}
 	}()
 
+	// Start button controller
+	buttonCtrl, err := button.New(cfg.Env.ButtonLine)
+	if err != nil {
+		log.Printf("Failed to create button controller: %v", err)
+	}
+	if buttonCtrl != nil {
+		defer buttonCtrl.Close()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			buttonCtrl.Run(ctx)
+		}()
+	}
+
 	// Start OLED display if enabled
 	if cfg.OLED.Enabled {
 		oledCtrl, err := oled.New(cfg)
@@ -56,7 +71,11 @@ func main() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				if err := oledCtrl.Run(ctx); err != nil {
+				buttonChan := make(<-chan struct{})
+				if buttonCtrl != nil {
+					buttonChan = buttonCtrl.PressChan()
+				}
+				if err := oledCtrl.Run(ctx, buttonChan); err != nil {
 					log.Printf("OLED controller error: %v", err)
 				}
 			}()

@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/freetype/truetype"
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/kolobock/rockpi-quad-go/internal/disk"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 	"periph.io/x/conn/v3/i2c/i2creg"
 	"periph.io/x/devices/v3/ssd1306"
@@ -53,7 +53,7 @@ type Controller struct {
 	netStats    map[string]netIOStats
 	diskStats   map[string]diskIOStats
 	syslogger   *syslog.Writer
-	fonts       map[int]font.Face // Font sizes: 10, 11, 12, 14
+	font        font.Face
 }
 
 type netIOStats struct {
@@ -89,32 +89,14 @@ func New(cfg *config.Config) (*Controller, error) {
 		return nil, fmt.Errorf("failed to create SSD1306 device: %w", err)
 	}
 
-	// Load TrueType font
-	fontBytes, err := os.ReadFile("/usr/bin/rockpi-quad/fonts/DejaVuSansMono-Bold.ttf")
-	if err != nil {
-		return nil, fmt.Errorf("failed to load font: %w", err)
-	}
-	ttfFont, err := truetype.Parse(fontBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse font: %w", err)
-	}
-
-	// Create font faces at different sizes (matching Python version)
-	fonts := make(map[int]font.Face)
-	for _, size := range []int{10, 11, 12, 14} {
-		fonts[size] = truetype.NewFace(ttfFont, &truetype.Options{
-			Size: float64(size),
-			DPI:  72,
-		})
-	}
-
+	// Use basicfont for consistent small display rendering
 	c := &Controller{
 		cfg:       cfg,
 		dev:       dev,
 		img:       image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
 		netStats:  make(map[string]netIOStats),
 		diskStats: make(map[string]diskIOStats),
-		fonts:     fonts,
+		font:      basicfont.Face7x13,
 	}
 
 	// Initialize syslog
@@ -133,7 +115,9 @@ func New(cfg *config.Config) (*Controller, error) {
 	return c, nil
 }
 
-func (c *Controller) Run(ctx context.Context) error {
+func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error {
+	c.showWelcome()
+
 	// Generate all pages
 	c.pages = c.generatePages()
 	if len(c.pages) == 0 {
@@ -153,6 +137,9 @@ func (c *Controller) Run(ctx context.Context) error {
 			c.showGoodbye()
 			return nil
 		case <-ticker.C:
+			c.nextPage()
+		case <-buttonChan:
+			// Button pressed - advance to next page
 			c.nextPage()
 		}
 	}
@@ -181,23 +168,17 @@ func (c *Controller) clearImage() {
 	}
 }
 
-func (c *Controller) drawText(x, y int, text string, size int) {
-	// Default to size 11 if not specified or invalid
-	f, ok := c.fonts[size]
-	if !ok {
-		f = c.fonts[11]
-	}
-
-	// Y coordinate adjustment for font baseline
+func (c *Controller) drawText(x, y int, text string) {
+	// Y coordinate is the baseline position
 	point := fixed.Point26_6{
 		X: fixed.I(x),
-		Y: fixed.I(y) + f.Metrics().Ascent,
+		Y: fixed.I(y) + c.font.Metrics().Ascent,
 	}
 
 	d := &font.Drawer{
 		Dst:  c.img,
 		Src:  image.White,
-		Face: f,
+		Face: c.font,
 		Dot:  point,
 	}
 	d.DrawString(text)
@@ -228,8 +209,8 @@ func (c *Controller) showWelcome() {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.drawText(0, 0, "ROCKPi QUAD HAT", 14)
-	c.drawText(32, 16, "Loading...", 12)
+	c.drawText(0, -2, "ROCKPi QUAD HAT")
+	c.drawText(32, 16, "Loading...")
 	c.display()
 	time.Sleep(1 * time.Second)
 }
@@ -239,7 +220,7 @@ func (c *Controller) showGoodbye() {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.drawText(32, 8, "Good Bye ~", 14)
+	c.drawText(32, 10, "Good Bye ~")
 	c.display()
 	time.Sleep(2 * time.Second)
 	c.clearImage()
@@ -260,7 +241,7 @@ func (c *Controller) nextPage() {
 	c.clearImage()
 	items := page.GetPageText()
 	for _, item := range items {
-		c.drawText(item.X, item.Y, item.Text, 11) // Use size 11 for all page content
+		c.drawText(item.X, item.Y, item.Text)
 	}
 	c.display()
 }
