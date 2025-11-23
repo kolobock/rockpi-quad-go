@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"log"
+	"log/syslog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -52,6 +52,7 @@ type Controller struct {
 	lastNetTime time.Time
 	netStats    map[string]netIOStats
 	diskStats   map[string]diskIOStats
+	syslogger   *syslog.Writer
 }
 
 type netIOStats struct {
@@ -95,6 +96,12 @@ func New(cfg *config.Config) (*Controller, error) {
 		diskStats: make(map[string]diskIOStats),
 	}
 
+	// Initialize syslog
+	logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
+	if err == nil {
+		c.syslogger = logger
+	}
+
 	// Initialize network and disk stats
 	c.updateNetworkStats()
 	c.updateDiskStats()
@@ -109,7 +116,9 @@ func (c *Controller) Run(ctx context.Context) error {
 	// Generate all pages
 	c.pages = c.generatePages()
 	if len(c.pages) == 0 {
-		log.Println("No OLED pages configured, display disabled")
+		if c.syslogger != nil {
+			c.syslogger.Info("No OLED pages configured, display disabled")
+		}
 		<-ctx.Done()
 		return nil
 	}
@@ -136,6 +145,9 @@ func (c *Controller) Close() error {
 	c.clearImage()
 	if err := c.dev.Draw(c.dev.Bounds(), c.img, image.Point{}); err != nil {
 		return err
+	}
+	if c.syslogger != nil {
+		c.syslogger.Close()
 	}
 	return c.dev.Halt()
 }
@@ -266,9 +278,9 @@ type SystemInfoPage0 struct {
 
 func (p *SystemInfoPage0) GetPageText() []TextItem {
 	return []TextItem{
-		{X: 0, Y: 8, Text: p.ctrl.getUptime()},
-		{X: 0, Y: 18, Text: p.ctrl.getCPUTemp()},
-		{X: 0, Y: 28, Text: p.ctrl.getIPAddress()},
+		{X: 0, Y: 10, Text: p.ctrl.getUptime()},
+		{X: 0, Y: 20, Text: p.ctrl.getCPUTemp()},
+		{X: 0, Y: 30, Text: p.ctrl.getIPAddress()},
 	}
 }
 
@@ -279,9 +291,9 @@ type SystemInfoPage1 struct {
 
 func (p *SystemInfoPage1) GetPageText() []TextItem {
 	return []TextItem{
-		{X: 0, Y: 8, Text: "Fan: monitoring"},
-		{X: 0, Y: 18, Text: p.ctrl.getCPULoad()},
-		{X: 0, Y: 28, Text: p.ctrl.getMemoryUsage()},
+		{X: 0, Y: 10, Text: "Fan: monitoring"},
+		{X: 0, Y: 20, Text: p.ctrl.getCPULoad()},
+		{X: 0, Y: 30, Text: p.ctrl.getMemoryUsage()},
 	}
 }
 

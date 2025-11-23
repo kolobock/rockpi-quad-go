@@ -6,11 +6,13 @@ import (
 	"log"
 	"log/syslog"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kolobock/rockpi-quad-go/internal/config"
+	"github.com/kolobock/rockpi-quad-go/internal/disk"
 	"github.com/kolobock/rockpi-quad-go/pkg/pwm"
 )
 
@@ -24,9 +26,10 @@ type Controller struct {
 	diskPWM   *pwm.PWM
 	syslogger *syslog.Writer
 
-	lastCPUDC  float64
-	lastDiskDC float64
-	lastTemp   time.Time
+	lastCPUDC    float64
+	lastDiskDC   float64
+	lastTemp     time.Time
+	lastDiskTemp float64 // Cache last disk temperature
 }
 
 func New(cfg *config.Config) (*Controller, error) {
@@ -62,7 +65,13 @@ func New(cfg *config.Config) (*Controller, error) {
 
 	// Initialize syslog if enabled
 	if cfg.Fan.Syslog {
-		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad")
+		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
+		if err == nil {
+			ctrl.syslogger = logger
+		}
+	} else {
+		// Still create syslog for debug messages even if not configured
+		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
 		if err == nil {
 			ctrl.syslogger = logger
 		}
@@ -135,24 +144,46 @@ func (c *Controller) getTemperatures() (cpu, disk float64) {
 		}
 	}
 
-	// Read disk temperature if enabled
+	// Read disk temperature if enabled and cache it
 	if c.cfg.Fan.TempDisks && time.Since(c.lastTemp) > 10*time.Second {
-		disk = c.getMaxDiskTemp()
+		c.lastDiskTemp = c.getMaxDiskTemp()
 		c.lastTemp = time.Now()
 	}
+	disk = c.lastDiskTemp
 
 	return cpu, disk
 }
 
 func (c *Controller) getMaxDiskTemp() float64 {
-	// TODO: Implement smartctl disk temperature reading
-	// For now, read from a simple cache file if it exists
-	if data, err := os.ReadFile("/tmp/rockpi-disk-temp"); err == nil {
-		if temp, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64); err == nil {
-			return temp
+	// Get disk list from lsblk (like Python version)
+	cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print $1}'")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+
+	disks := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(disks) == 0 {
+		return 0
+	}
+
+	var maxTemp float64
+	for _, diskName := range disks {
+		diskName = strings.TrimSpace(diskName)
+		if diskName == "" {
+			continue
+		}
+		diskDev := "/dev/" + diskName
+		temp, err := disk.GetTemperature(diskDev)
+		if err != nil {
+			continue
+		}
+		if temp > maxTemp {
+			maxTemp = temp
 		}
 	}
-	return 0
+
+	return maxTemp
 }
 
 func (c *Controller) calculateDutyCycle(temp float64, key byte) float64 {
