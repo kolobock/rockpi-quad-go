@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kolobock/rockpi-quad-go/internal/config"
@@ -30,12 +31,15 @@ type Controller struct {
 	lastDiskDC   float64
 	lastTemp     time.Time
 	lastDiskTemp float64 // Cache last disk temperature
+	enabled      bool    // Fan control enabled/disabled
+	mu           sync.Mutex
 }
 
 func New(cfg *config.Config) (*Controller, error) {
 	ctrl := &Controller{
 		cfg:      cfg,
 		lastTemp: time.Now().Add(-time.Hour), // Force first read
+		enabled:  true,
 	}
 
 	// Initialize CPU fan PWM
@@ -80,6 +84,39 @@ func New(cfg *config.Config) (*Controller, error) {
 	return ctrl, nil
 }
 
+// ToggleFan toggles fan control on/off
+func (c *Controller) ToggleFan() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.enabled = !c.enabled
+
+	if c.enabled {
+		// Re-enabled - resume temperature-based control
+		if c.syslogger != nil {
+			c.syslogger.Info("Fan control enabled - temperature-based control resumed")
+		}
+	} else {
+		// Disabled - set fans to full speed (0% if inverted, 100% if normal)
+		fullSpeed := 100.0
+		if c.cfg.Fan.Polarity == "inversed" {
+			fullSpeed = 0.0
+		}
+
+		if c.syslogger != nil {
+			c.syslogger.Info(fmt.Sprintf("Fan control disabled - setting fans to full speed (DC: %.0f%%)", fullSpeed))
+		}
+		if c.cpuPWM != nil {
+			c.cpuPWM.SetDutyCycle(fullSpeed)
+			c.lastCPUDC = fullSpeed
+		}
+		if c.diskPWM != nil {
+			c.diskPWM.SetDutyCycle(fullSpeed)
+			c.lastDiskDC = fullSpeed
+		}
+	}
+}
+
 func (c *Controller) Run(ctx context.Context) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -97,6 +134,14 @@ func (c *Controller) Run(ctx context.Context) error {
 }
 
 func (c *Controller) update() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// If fan control is disabled, keep fans at 100%
+	if !c.enabled {
+		return nil
+	}
+
 	cpuTemp, diskTemp := c.getTemperatures()
 
 	cpuDC := c.calculateDutyCycle(cpuTemp, 'c')

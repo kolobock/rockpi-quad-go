@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -82,14 +83,42 @@ func main() {
 				if buttonCtrl != nil {
 					go func() {
 						for event := range buttonCtrl.PressChan() {
-							// For now, all button events advance the page
-							// TODO: implement click=slider, twice=fan_switch, press=poweroff
-							log.Printf("Button event: %s (action: %s)", event, getButtonAction(cfg, event))
-							if event == button.Click && cfg.Key.Click == "slider" {
+							action := getButtonAction(cfg, event)
+							log.Printf("Button event: %s (action: %s)", event, action)
+
+							// Execute the configured action
+							switch action {
+							case "slider":
+								// Advance OLED page
 								select {
 								case buttonChan <- struct{}{}:
 								default:
 								}
+							case "switch":
+								// Toggle fan on/off
+								fanCtrl.ToggleFan()
+							case "poweroff":
+								log.Println("Poweroff requested via button press")
+								go func() {
+									time.Sleep(1 * time.Second) // Give time for log to be written
+									if err := exec.Command("poweroff").Run(); err != nil {
+										log.Printf("Failed to execute poweroff: %v", err)
+									}
+								}()
+								cancel() // Trigger shutdown
+							case "reboot":
+								log.Println("Reboot requested via button press")
+								go func() {
+									time.Sleep(1 * time.Second) // Give time for log to be written
+									if err := exec.Command("reboot").Run(); err != nil {
+										log.Printf("Failed to execute reboot: %v", err)
+									}
+								}()
+								cancel() // Trigger shutdown (system will handle reboot)
+							case "none":
+								// Do nothing
+							default:
+								log.Printf("Unknown button action: %s", action)
 							}
 						}
 					}()
