@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/freetype/truetype"
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/kolobock/rockpi-quad-go/internal/disk"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 	"periph.io/x/conn/v3/i2c/i2creg"
 	"periph.io/x/devices/v3/ssd1306"
@@ -53,6 +53,7 @@ type Controller struct {
 	netStats    map[string]netIOStats
 	diskStats   map[string]diskIOStats
 	syslogger   *syslog.Writer
+	fonts       map[int]font.Face // Font sizes: 10, 11, 12, 14
 }
 
 type netIOStats struct {
@@ -88,12 +89,32 @@ func New(cfg *config.Config) (*Controller, error) {
 		return nil, fmt.Errorf("failed to create SSD1306 device: %w", err)
 	}
 
+	// Load TrueType font
+	fontBytes, err := os.ReadFile("/usr/bin/rockpi-quad/fonts/DejaVuSansMono-Bold.ttf")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load font: %w", err)
+	}
+	ttfFont, err := truetype.Parse(fontBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse font: %w", err)
+	}
+
+	// Create font faces at different sizes (matching Python version)
+	fonts := make(map[int]font.Face)
+	for _, size := range []int{10, 11, 12, 14} {
+		fonts[size] = truetype.NewFace(ttfFont, &truetype.Options{
+			Size: float64(size),
+			DPI:  72,
+		})
+	}
+
 	c := &Controller{
 		cfg:       cfg,
 		dev:       dev,
 		img:       image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
 		netStats:  make(map[string]netIOStats),
 		diskStats: make(map[string]diskIOStats),
+		fonts:     fonts,
 	}
 
 	// Initialize syslog
@@ -160,16 +181,23 @@ func (c *Controller) clearImage() {
 	}
 }
 
-func (c *Controller) drawText(x, y int, text string) {
+func (c *Controller) drawText(x, y int, text string, size int) {
+	// Default to size 11 if not specified or invalid
+	f, ok := c.fonts[size]
+	if !ok {
+		f = c.fonts[11]
+	}
+
+	// Y coordinate adjustment for font baseline
 	point := fixed.Point26_6{
-		X: fixed.Int26_6(x * 64),
-		Y: fixed.Int26_6(y * 64),
+		X: fixed.I(x),
+		Y: fixed.I(y) + f.Metrics().Ascent,
 	}
 
 	d := &font.Drawer{
 		Dst:  c.img,
 		Src:  image.White,
-		Face: basicfont.Face7x13,
+		Face: f,
 		Dot:  point,
 	}
 	d.DrawString(text)
@@ -200,8 +228,8 @@ func (c *Controller) showWelcome() {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.drawText(0, 10, "ROCKPi QUAD HAT")
-	c.drawText(32, 24, "Loading...")
+	c.drawText(0, 0, "ROCKPi QUAD HAT", 14)
+	c.drawText(32, 16, "Loading...", 12)
 	c.display()
 	time.Sleep(1 * time.Second)
 }
@@ -211,7 +239,7 @@ func (c *Controller) showGoodbye() {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.drawText(32, 16, "Good Bye ~")
+	c.drawText(32, 8, "Good Bye ~", 14)
 	c.display()
 	time.Sleep(2 * time.Second)
 	c.clearImage()
@@ -232,7 +260,7 @@ func (c *Controller) nextPage() {
 	c.clearImage()
 	items := page.GetPageText()
 	for _, item := range items {
-		c.drawText(item.X, item.Y, item.Text)
+		c.drawText(item.X, item.Y, item.Text, 11) // Use size 11 for all page content
 	}
 	c.display()
 }
@@ -278,9 +306,9 @@ type SystemInfoPage0 struct {
 
 func (p *SystemInfoPage0) GetPageText() []TextItem {
 	return []TextItem{
-		{X: 0, Y: 10, Text: p.ctrl.getUptime()},
-		{X: 0, Y: 20, Text: p.ctrl.getCPUTemp()},
-		{X: 0, Y: 30, Text: p.ctrl.getIPAddress()},
+		{X: 0, Y: -2, Text: p.ctrl.getUptime()},
+		{X: 0, Y: 10, Text: p.ctrl.getCPUTemp()},
+		{X: 0, Y: 21, Text: p.ctrl.getIPAddress()},
 	}
 }
 
@@ -291,9 +319,9 @@ type SystemInfoPage1 struct {
 
 func (p *SystemInfoPage1) GetPageText() []TextItem {
 	return []TextItem{
-		{X: 0, Y: 10, Text: "Fan: monitoring"},
-		{X: 0, Y: 20, Text: p.ctrl.getCPULoad()},
-		{X: 0, Y: 30, Text: p.ctrl.getMemoryUsage()},
+		{X: 0, Y: -2, Text: "Fan: monitoring"},
+		{X: 0, Y: 10, Text: p.ctrl.getCPULoad()},
+		{X: 0, Y: 21, Text: p.ctrl.getMemoryUsage()},
 	}
 }
 
@@ -306,13 +334,17 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 	items := []TextItem{}
 	usage := p.ctrl.getDiskUsage()
 
-	y := 10
+	y := -2
 	for i, u := range usage {
 		if i >= 3 {
 			break
 		}
 		items = append(items, TextItem{X: 0, Y: y, Text: u})
-		y += 10
+		if i == 0 {
+			y = 10
+		} else {
+			y = 21
+		}
 	}
 
 	return items
@@ -327,9 +359,9 @@ type NetworkIOPage struct {
 func (p *NetworkIOPage) GetPageText() []TextItem {
 	rx, tx := p.ctrl.getNetworkRate(p.iface)
 	return []TextItem{
-		{X: 0, Y: 10, Text: fmt.Sprintf("Net(%s):", p.iface)},
-		{X: 0, Y: 20, Text: fmt.Sprintf("Rx:%.2f MB/s", rx)},
-		{X: 0, Y: 30, Text: fmt.Sprintf("Tx:%.2f MB/s", tx)},
+		{X: 0, Y: -2, Text: fmt.Sprintf("Net(%s):", p.iface)},
+		{X: 0, Y: 10, Text: fmt.Sprintf("Rx:%.6f MB/s", rx)},
+		{X: 0, Y: 21, Text: fmt.Sprintf("Tx:%.6f MB/s", tx)},
 	}
 }
 
@@ -342,9 +374,9 @@ type DiskIOPage struct {
 func (p *DiskIOPage) GetPageText() []TextItem {
 	read, write := p.ctrl.getDiskRate(p.disk)
 	return []TextItem{
-		{X: 0, Y: 10, Text: fmt.Sprintf("Disk(%s):", p.disk)},
-		{X: 0, Y: 20, Text: fmt.Sprintf("R:%.2f MB/s", read)},
-		{X: 0, Y: 30, Text: fmt.Sprintf("W:%.2f MB/s", write)},
+		{X: 0, Y: -2, Text: fmt.Sprintf("Disk(%s):", p.disk)},
+		{X: 0, Y: 10, Text: fmt.Sprintf("R:%.6f MB/s", read)},
+		{X: 0, Y: 21, Text: fmt.Sprintf("W:%.6f MB/s", write)},
 	}
 }
 
@@ -355,14 +387,15 @@ type DiskTempPage struct {
 
 func (p *DiskTempPage) GetPageText() []TextItem {
 	temps := p.ctrl.getDiskTemperatures()
-	items := []TextItem{{X: 0, Y: 10, Text: "Disk Temps:"}}
+	items := []TextItem{{X: 0, Y: -2, Text: "Disk Temps:"}}
 
-	y := 20
-	for _, temp := range temps {
+	y := 10
+	for i, temp := range temps {
 		items = append(items, TextItem{X: 0, Y: y, Text: temp})
-		y += 10
-		if y > 30 {
-			break
+		if i == 0 {
+			y = 21
+		} else {
+			break // Only 2 lines fit
 		}
 	}
 
