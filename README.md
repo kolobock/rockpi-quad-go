@@ -45,10 +45,10 @@ No changes to existing config files are needed.
 ## Dependencies
 
 ```bash
+go get github.com/d2r2/go-i2c
+go get github.com/warthog618/go-gpiocdev
 go get gopkg.in/ini.v1
-go get periph.io/x/conn/v3
-go get periph.io/x/devices/v3
-go get periph.io/x/host/v3
+go get golang.org/x/image
 ```
 
 Or simply:

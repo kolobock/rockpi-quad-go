@@ -18,9 +18,6 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
-	"periph.io/x/conn/v3/i2c/i2creg"
-	"periph.io/x/devices/v3/ssd1306"
-	"periph.io/x/host/v3"
 )
 
 const (
@@ -43,7 +40,7 @@ type TextItem struct {
 
 type Controller struct {
 	cfg         *config.Config
-	dev         *ssd1306.Dev
+	dev         *SSD1306
 	img         *image.Gray
 	mu          sync.Mutex
 	pageIndex   int
@@ -69,30 +66,16 @@ type diskIOStats struct {
 }
 
 func New(cfg *config.Config) (*Controller, error) {
-	// Initialize periph.io for I2C (not needed for GPIO as we use gpiocdev)
-	if _, err := host.Init(); err != nil {
-		return nil, fmt.Errorf("failed to initialize periph.io: %w", err)
-	}
-
-	// Open I2C bus
-	bus, err := i2creg.Open("")
+	// Create SSD1306 display driver
+	display, err := NewSSD1306(displayWidth, displayHeight)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open I2C: %w", err)
-	}
-
-	// Create SSD1306 device
-	dev, err := ssd1306.NewI2C(bus, &ssd1306.Opts{
-		W: displayWidth,
-		H: displayHeight,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SSD1306 device: %w", err)
+		return nil, fmt.Errorf("failed to create SSD1306 display: %w", err)
 	}
 
 	// Use basicfont for consistent small display rendering
 	c := &Controller{
 		cfg:       cfg,
-		dev:       dev,
+		dev:       display,
 		img:       image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
 		netStats:  make(map[string]netIOStats),
 		diskStats: make(map[string]diskIOStats),
@@ -151,13 +134,12 @@ func (c *Controller) Close() error {
 
 	// Clear display
 	c.clearImage()
-	if err := c.dev.Draw(c.dev.Bounds(), c.img, image.Point{}); err != nil {
-		return err
-	}
+	c.displayToDevice()
+
 	if c.syslogger != nil {
 		c.syslogger.Close()
 	}
-	return c.dev.Halt()
+	return c.dev.Close()
 }
 
 func (c *Controller) clearImage() {
@@ -185,11 +167,20 @@ func (c *Controller) drawText(x, y int, text string) {
 }
 
 func (c *Controller) display() error {
-	img := c.img
 	if c.cfg.OLED.Rotate {
-		img = c.rotateImage180(c.img)
+		rotated := c.rotateImage180(c.img)
+		// Copy rotated image back to c.img
+		for y := 0; y < displayHeight; y++ {
+			for x := 0; x < displayWidth; x++ {
+				c.img.Set(x, y, rotated.At(x, y))
+			}
+		}
 	}
-	return c.dev.Draw(c.dev.Bounds(), img, image.Point{})
+	return c.displayToDevice()
+}
+
+func (c *Controller) displayToDevice() error {
+	return c.dev.Display(c.img)
 }
 
 func (c *Controller) rotateImage180(src *image.Gray) *image.Gray {
