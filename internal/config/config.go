@@ -14,6 +14,7 @@ type Config struct {
 	OLED OLEDConfig
 	Disk DiskConfig
 	Key  KeyConfig
+	Time TimeConfig
 	Env  EnvConfig
 }
 
@@ -67,6 +68,11 @@ type KeyConfig struct {
 	Click string
 	Twice string
 	Press string
+}
+
+type TimeConfig struct {
+	Twice float64 // seconds for double-click detection
+	Press float64 // seconds for long-press detection
 }
 
 func Load(path string) (*Config, error) {
@@ -154,6 +160,11 @@ func Load(path string) (*Config, error) {
 	cfg.Key.Click = keySec.Key("click").MustString("slider")
 	cfg.Key.Twice = keySec.Key("twice").MustString("switch")
 	cfg.Key.Press = keySec.Key("press").MustString("poweroff")
+
+	// Load time configuration
+	timeSec := iniFile.Section("time")
+	cfg.Time.Twice = timeSec.Key("twice").MustFloat64(0.7)
+	cfg.Time.Press = timeSec.Key("press").MustFloat64(1.8)
 
 	return cfg, nil
 }
