@@ -18,10 +18,10 @@ type Config struct {
 
 type FanConfig struct {
 	// Temperature levels (Celsius)
-	LV0, LV1, LV2, LV3       float64
-	LV0C, LV1C, LV2C, LV3C   float64 // CPU fan levels
-	LV0F, LV1F, LV2F, LV3F   float64 // Disk fan levels
-	MaxCPUTemp, MaxDiskTemp  float64
+	LV0, LV1, LV2, LV3      float64
+	LV0C, LV1C, LV2C, LV3C  float64 // CPU fan levels
+	LV0F, LV1F, LV2F, LV3F  float64 // Disk fan levels
+	MaxCPUTemp, MaxDiskTemp float64
 
 	Linear    bool
 	TempDisks bool
