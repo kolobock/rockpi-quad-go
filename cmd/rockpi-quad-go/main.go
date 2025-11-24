@@ -18,6 +18,8 @@ import (
 )
 
 func main() {
+	log.SetFlags(0)
+
 	cfg, err := config.Load("/etc/rockpi-quad.conf")
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
