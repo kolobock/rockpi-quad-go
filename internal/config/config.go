@@ -34,17 +34,15 @@ type EnvConfig struct {
 }
 
 type FanConfig struct {
-	// Temperature levels (Celsius)
 	LV0, LV1, LV2, LV3      float64
-	LV0C, LV1C, LV2C, LV3C  float64 // CPU fan levels
-	LV0F, LV1F, LV2F, LV3F  float64 // Disk fan levels
+	LV0C, LV1C, LV2C, LV3C  float64
+	LV0F, LV1F, LV2F, LV3F  float64
 	MaxCPUTemp, MaxDiskTemp float64
 
 	Linear    bool
 	TempDisks bool
 	Syslog    bool
 
-	// PWM configuration from environment
 	CPUPWMChip    string
 	CPUPWMChannel int
 	TBPWMChip     string
@@ -76,8 +74,8 @@ type KeyConfig struct {
 }
 
 type TimeConfig struct {
-	Twice float64 // seconds for double-click detection
-	Press float64 // seconds for long-press detection
+	Twice float64
+	Press float64
 }
 
 func Load(path string) (*Config, error) {

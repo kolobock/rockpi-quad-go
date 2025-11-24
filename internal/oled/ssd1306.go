@@ -37,7 +37,7 @@ const (
 	ssd1306ExternalVcc        = 0x01
 	ssd1306SwitchCapVcc       = 0x02
 
-	ssd1306I2CAddr = 0x3C // Default I2C address for SSD1306
+	ssd1306I2CAddr = 0x3C
 )
 
 // SSD1306 represents an SSD1306 OLED display driver

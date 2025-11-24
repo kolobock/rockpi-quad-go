@@ -21,7 +21,7 @@ type TextItem struct {
 	X        int
 	Y        int
 	Text     string
-	FontSize int // Font size: 10, 11, 12, or 14
+	FontSize int
 }
 
 // SystemInfoPage0 - Uptime, CPU Temp, IP Address
@@ -346,7 +346,6 @@ func (c *Controller) getDiskNameFromMount(mount string) string {
 	device := strings.TrimSpace(string(out))
 	if strings.HasPrefix(device, "/dev/") {
 		device = strings.TrimPrefix(device, "/dev/")
-		// Remove partition number
 		for i := len(device) - 1; i >= 0; i-- {
 			device = device[:i+1]
 			if device[i] < '0' || device[i] > '9' {

@@ -16,7 +16,7 @@ type PWM struct {
 	inversed bool
 }
 
-const defaultPeriod = 40000 // 25kHz
+const defaultPeriod = 40000
 
 func New(chip string, channel int) (*PWM, error) {
 	p := &PWM{

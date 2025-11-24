@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	MinDutyCycle = 0.07 // 7% minimum for fan to spin
+	MinDutyCycle = 0.07
 )
 
 type Controller struct {
@@ -30,15 +30,15 @@ type Controller struct {
 	lastCPUDC    float64
 	lastDiskDC   float64
 	lastTemp     time.Time
-	lastDiskTemp float64 // Cache last disk temperature
-	enabled      bool    // Fan control enabled/disabled
+	lastDiskTemp float64
+	enabled      bool
 	mu           sync.Mutex
 }
 
 func New(cfg *config.Config) (*Controller, error) {
 	ctrl := &Controller{
 		cfg:      cfg,
-		lastTemp: time.Now().Add(-time.Hour), // Force first read
+		lastTemp: time.Now().Add(-time.Hour),
 		enabled:  true,
 	}
 
@@ -139,7 +139,6 @@ func (c *Controller) update() error {
 	cpuDC := c.calculateDutyCycle(cpuTemp, 'c')
 	diskDC := c.calculateDutyCycle(diskTemp, 'f')
 
-	// Apply minimum duty cycle threshold
 	if cpuDC > 0 && cpuDC < MinDutyCycle {
 		cpuDC = MinDutyCycle
 	}

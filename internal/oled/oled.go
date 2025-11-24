@@ -19,7 +19,7 @@ import (
 const (
 	displayWidth  = 128
 	displayHeight = 32
-	sliderTime    = 10 * time.Second // default page rotation time
+	sliderTime    = 10 * time.Second
 )
 
 // FanController interface for getting fan speeds
@@ -41,7 +41,7 @@ type Controller struct {
 	syslogger    *syslog.Writer
 	fonts        map[int]font.Face
 	fanCtrl      FanController
-	tempDiskDevs []string // Cached list of disks for temperature monitoring
+	tempDiskDevs []string
 }
 
 type netIOStats struct {

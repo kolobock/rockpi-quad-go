@@ -24,8 +24,8 @@ type Controller struct {
 	line        *gpiocdev.Line
 	pressChan   chan EventType
 	syslogger   *syslog.Writer
-	twiceWindow time.Duration // time window for double-click detection
-	pressTime   time.Duration // time threshold for long-press detection
+	twiceWindow time.Duration
+	pressTime   time.Duration
 	eventChan   chan gpiocdev.LineEvent
 }
 

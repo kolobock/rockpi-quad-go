@@ -206,6 +206,36 @@ rockpi-quad-go/
     └── DejaVuSansMono-Bold.ttf  # TrueType font for OLED
 ```
 
+## Testing
+
+The project includes comprehensive unit tests for core functionality:
+
+```bash
+# Run tests (macOS/Linux compatible tests only)
+make test
+
+# Run all tests (requires Linux environment)
+make test-linux
+
+# Run tests with coverage
+go test -cover ./pkg/... ./internal/config
+
+# Run specific package tests
+go test -v ./pkg/pwm
+go test -v ./internal/config
+```
+
+### Test Coverage
+
+- **pkg/pwm**: PWM duty cycle calculation and sysfs operations
+- **internal/config**: Configuration file loading and defaults
+- **internal/fan**: Fan speed calculation (linear and non-linear modes)
+- **internal/button**: Button event type handling
+- **internal/oled**: Display rendering, page generation, and image rotation
+- **internal/disk**: Device name parsing and temperature monitoring
+
+Note: Some tests require a Linux environment with GPIO hardware support to run fully.
+
 ## License
 
 Same as the original Python version.

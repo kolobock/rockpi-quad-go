@@ -14,7 +14,10 @@ clean:
 	go clean
 
 test:
-	go test -v ./...
+	go test -v ./pkg/... ./internal/config
+
+test-linux:
+	GOOS=linux go test -v ./...
 
 install: build
 	sudo cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR)/
