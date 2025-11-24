@@ -144,7 +144,7 @@ func (c *Controller) update() error {
 		}
 	}
 
-	log.Printf("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f, run: %b",
+	log.Printf("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f, run: %t",
 		cpuTemp, cpuDC*100, diskTemp, diskDC*100, c.enabled)
 
 	return nil
