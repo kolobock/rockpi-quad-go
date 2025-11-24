@@ -18,9 +18,10 @@ type Page interface {
 
 // TextItem represents a text element to be drawn
 type TextItem struct {
-	X    int
-	Y    int
-	Text string
+	X        int
+	Y        int
+	Text     string
+	FontSize int // Font size: 10, 11, 12, or 14
 }
 
 // SystemInfoPage0 - Uptime, CPU Temp, IP Address
@@ -30,9 +31,9 @@ type SystemInfoPage0 struct {
 
 func (p *SystemInfoPage0) GetPageText() []TextItem {
 	return []TextItem{
-		{X: 0, Y: -2, Text: p.ctrl.getUptime()},
-		{X: 0, Y: 10, Text: p.ctrl.getCPUTemp()},
-		{X: 0, Y: 21, Text: p.ctrl.getIPAddress()},
+		{X: 0, Y: -2, Text: p.ctrl.getUptime(), FontSize: 11},
+		{X: 0, Y: 10, Text: p.ctrl.getCPUTemp(), FontSize: 11},
+		{X: 0, Y: 21, Text: p.ctrl.getIPAddress(), FontSize: 11},
 	}
 }
 
@@ -43,9 +44,9 @@ type SystemInfoPage1 struct {
 
 func (p *SystemInfoPage1) GetPageText() []TextItem {
 	return []TextItem{
-		{X: 0, Y: -2, Text: "Fan: monitoring"},
-		{X: 0, Y: 10, Text: p.ctrl.getCPULoad()},
-		{X: 0, Y: 21, Text: p.ctrl.getMemoryUsage()},
+		{X: 0, Y: -2, Text: "Fan: monitoring", FontSize: 11},
+		{X: 0, Y: 10, Text: p.ctrl.getCPULoad(), FontSize: 11},
+		{X: 0, Y: 21, Text: p.ctrl.getMemoryUsage(), FontSize: 11},
 	}
 }
 
@@ -63,22 +64,22 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 	}
 
 	// First line: root partition (full width)
-	items = append(items, TextItem{X: 0, Y: -2, Text: usage[0]})
+	items = append(items, TextItem{X: 0, Y: -2, Text: usage[0], FontSize: 11})
 
 	// Second line: sda and sdb (two columns)
 	if len(usage) > 1 {
-		items = append(items, TextItem{X: 0, Y: 10, Text: usage[1]})
+		items = append(items, TextItem{X: 0, Y: 10, Text: usage[1], FontSize: 11})
 	}
 	if len(usage) > 2 {
-		items = append(items, TextItem{X: 64, Y: 10, Text: usage[2]})
+		items = append(items, TextItem{X: 64, Y: 10, Text: usage[2], FontSize: 11})
 	}
 
 	// Third line: sdc and sdd (two columns)
 	if len(usage) > 3 {
-		items = append(items, TextItem{X: 0, Y: 21, Text: usage[3]})
+		items = append(items, TextItem{X: 0, Y: 21, Text: usage[3], FontSize: 11})
 	}
 	if len(usage) > 4 {
-		items = append(items, TextItem{X: 64, Y: 21, Text: usage[4]})
+		items = append(items, TextItem{X: 64, Y: 21, Text: usage[4], FontSize: 11})
 	}
 
 	return items
@@ -93,9 +94,9 @@ type NetworkIOPage struct {
 func (p *NetworkIOPage) GetPageText() []TextItem {
 	rx, tx := p.ctrl.getNetworkRate(p.iface)
 	return []TextItem{
-		{X: 0, Y: -2, Text: fmt.Sprintf("Network (%s):", p.iface)},
-		{X: 0, Y: 10, Text: fmt.Sprintf("Rx:%10.6f MB/s", rx)},
-		{X: 0, Y: 21, Text: fmt.Sprintf("Tx:%10.6f MB/s", tx)},
+		{X: 0, Y: -2, Text: fmt.Sprintf("Network (%s):", p.iface), FontSize: 11},
+		{X: 0, Y: 10, Text: fmt.Sprintf("Rx:%10.6f MB/s", rx), FontSize: 11},
+		{X: 0, Y: 21, Text: fmt.Sprintf("Tx:%10.6f MB/s", tx), FontSize: 11},
 	}
 }
 
@@ -108,9 +109,9 @@ type DiskIOPage struct {
 func (p *DiskIOPage) GetPageText() []TextItem {
 	read, write := p.ctrl.getDiskRate(p.disk)
 	return []TextItem{
-		{X: 0, Y: -2, Text: fmt.Sprintf("Disk (%s):", p.disk)},
-		{X: 0, Y: 10, Text: fmt.Sprintf("R:%11.6f MB/s", read)},
-		{X: 0, Y: 21, Text: fmt.Sprintf("W:%11.6f MB/s", write)},
+		{X: 0, Y: -2, Text: fmt.Sprintf("Disk (%s):", p.disk), FontSize: 11},
+		{X: 0, Y: 10, Text: fmt.Sprintf("R:%11.6f MB/s", read), FontSize: 11},
+		{X: 0, Y: 21, Text: fmt.Sprintf("W:%11.6f MB/s", write), FontSize: 11},
 	}
 }
 
@@ -121,11 +122,11 @@ type DiskTempPage struct {
 
 func (p *DiskTempPage) GetPageText() []TextItem {
 	temps := p.ctrl.getDiskTemperatures()
-	items := []TextItem{{X: 0, Y: -2, Text: "Disk Temps:"}}
+	items := []TextItem{{X: 0, Y: -2, Text: "Disk Temps:", FontSize: 11}}
 
 	y := 10
 	for i, temp := range temps {
-		items = append(items, TextItem{X: 0, Y: y, Text: temp})
+		items = append(items, TextItem{X: 0, Y: y, Text: temp, FontSize: 11})
 		if i == 0 {
 			y = 21
 		} else {

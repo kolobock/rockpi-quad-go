@@ -34,7 +34,7 @@ type Controller struct {
 	netStats    map[string]netIOStats
 	diskStats   map[string]diskIOStats
 	syslogger   *syslog.Writer
-	font        font.Face
+	fonts       map[int]font.Face
 }
 
 type netIOStats struct {
@@ -74,10 +74,14 @@ func New(cfg *config.Config) (*Controller, error) {
 		return nil, fmt.Errorf("failed to create SSD1306 display: %w", err)
 	}
 
-	// Load TTF font
-	fontFace, err := loadFont("fonts/DejaVuSansMono-Bold.ttf", 10)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load font: %w", err)
+	// Load TTF fonts with different sizes
+	fonts := make(map[int]font.Face)
+	for _, size := range []int{10, 11, 12, 14} {
+		fontFace, err := loadFont("fonts/DejaVuSansMono-Bold.ttf", float64(size))
+		if err != nil {
+			return nil, fmt.Errorf("failed to load font size %d: %w", size, err)
+		}
+		fonts[size] = fontFace
 	}
 
 	c := &Controller{
@@ -86,7 +90,7 @@ func New(cfg *config.Config) (*Controller, error) {
 		img:       image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
 		netStats:  make(map[string]netIOStats),
 		diskStats: make(map[string]diskIOStats),
-		font:      fontFace,
+		fonts:     fonts,
 	}
 
 	// Initialize syslog
@@ -157,10 +161,16 @@ func (c *Controller) clearImage() {
 	}
 }
 
-func (c *Controller) drawText(x, y int, text string) {
+func (c *Controller) drawText(x, y int, text string, fontSize int) {
+	// Default to size 11 if not specified or invalid
+	fontFace, ok := c.fonts[fontSize]
+	if !ok {
+		fontFace = c.fonts[11]
+	}
+
 	// Python PIL draws from top-left corner at (x, y)
 	// Go font.Drawer uses baseline, so we need to add the ascent
-	metrics := c.font.Metrics()
+	metrics := fontFace.Metrics()
 	ascent := metrics.Ascent.Ceil()
 
 	point := fixed.Point26_6{
@@ -171,7 +181,7 @@ func (c *Controller) drawText(x, y int, text string) {
 	d := &font.Drawer{
 		Dst:  c.img,
 		Src:  image.NewUniform(color.White),
-		Face: c.font,
+		Face: fontFace,
 		Dot:  point,
 	}
 	d.DrawString(text)
@@ -206,8 +216,8 @@ func (c *Controller) showWelcome() {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.drawText(0, -2, "ROCKPi QUAD HAT")
-	c.drawText(32, 16, "Loading...")
+	c.drawText(0, 0, "ROCKPi QUAD HAT", 14)
+	c.drawText(32, 16, "Loading...", 12)
 	c.display()
 	time.Sleep(1 * time.Second)
 }
@@ -217,7 +227,7 @@ func (c *Controller) showGoodbye() {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.drawText(32, 8, "Good Bye ~")
+	c.drawText(32, 8, "Good Bye ~", 14)
 	c.display()
 	time.Sleep(2 * time.Second)
 	c.clearImage()
@@ -238,7 +248,7 @@ func (c *Controller) nextPage() {
 	c.clearImage()
 	items := page.GetPageText()
 	for _, item := range items {
-		c.drawText(item.X, item.Y, item.Text)
+		c.drawText(item.X, item.Y, item.Text, item.FontSize)
 	}
 	c.display()
 }
