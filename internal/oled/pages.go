@@ -58,17 +58,27 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 	items := []TextItem{}
 	usage := p.ctrl.getDiskUsage()
 
-	y := -2
-	for i, u := range usage {
-		if i >= 3 {
-			break
-		}
-		items = append(items, TextItem{X: 0, Y: y, Text: u})
-		if i == 0 {
-			y = 10
-		} else {
-			y = 21
-		}
+	if len(usage) == 0 {
+		return items
+	}
+
+	// First line: root partition (full width)
+	items = append(items, TextItem{X: 0, Y: -2, Text: usage[0]})
+
+	// Second line: sda and sdb (two columns)
+	if len(usage) > 1 {
+		items = append(items, TextItem{X: 0, Y: 10, Text: usage[1]})
+	}
+	if len(usage) > 2 {
+		items = append(items, TextItem{X: 64, Y: 10, Text: usage[2]})
+	}
+
+	// Third line: sdc and sdd (two columns)
+	if len(usage) > 3 {
+		items = append(items, TextItem{X: 0, Y: 21, Text: usage[3]})
+	}
+	if len(usage) > 4 {
+		items = append(items, TextItem{X: 64, Y: 21, Text: usage[4]})
 	}
 
 	return items
@@ -183,21 +193,42 @@ func (c *Controller) getMemoryUsage() string {
 	return "Mem: " + strings.TrimSpace(string(out))
 }
 
+// stripDeviceName removes /dev/ prefix and partition numbers from device names
+// e.g., /dev/sda1 -> sda, /dev/nvme0n1p1 -> nvme0n1
+func stripDeviceName(device string) string {
+	if strings.HasPrefix(device, "/dev/") {
+		device = strings.TrimPrefix(device, "/dev/")
+		// Remove partition number
+		for i := len(device) - 1; i >= 0; i-- {
+			if device[i] < '0' || device[i] > '9' {
+				return device[:i+1]
+			}
+		}
+	}
+	return device
+}
+
 func (c *Controller) getDiskUsage() []string {
 	var usage []string
 
-	// Add root partition
-	out, err := exec.Command("sh", "-c", "df -h / | awk 'NR==2{printf \"%s\", $5}'").Output()
+	// Add root partition - show as "/" instead of device name
+	out, err := exec.Command("sh", "-c", "df -h / | awk 'NR==2{print $5}'").Output()
 	if err == nil {
-		usage = append(usage, "/ "+strings.TrimSpace(string(out)))
+		percentage := strings.TrimSpace(string(out))
+		if percentage != "" {
+			usage = append(usage, "/ "+percentage)
+		}
 	}
 
-	// Add configured mount points
+	// Add configured mount points - show device name instead of mount point
 	for _, mnt := range c.cfg.Disk.SpaceUsageMountPoints {
-		cmd := fmt.Sprintf("df -h %s | awk 'NR==2{printf \"%%s\", $5}'", mnt)
+		cmd := fmt.Sprintf("df -h %s | awk 'NR==2{print $1, $5}'", mnt)
 		out, err := exec.Command("sh", "-c", cmd).Output()
 		if err == nil && len(out) > 0 {
-			usage = append(usage, mnt+" "+strings.TrimSpace(string(out)))
+			parts := strings.Fields(strings.TrimSpace(string(out)))
+			if len(parts) >= 2 {
+				usage = append(usage, stripDeviceName(parts[0])+" "+parts[1])
+			}
 		}
 	}
 
@@ -205,10 +236,16 @@ func (c *Controller) getDiskUsage() []string {
 }
 
 func (c *Controller) getNetworkInterfaces() []string {
-	// Check if specific interfaces are configured
-	if len(c.cfg.Disk.IOUsageMountPoints) > 0 {
-		// Use interfaces from config if available
-		// For now, return common interfaces
+	// Use configured interfaces if available
+	if len(c.cfg.Network.Interfaces) > 0 {
+		var interfaces []string
+		for _, iface := range c.cfg.Network.Interfaces {
+			// Verify interface exists
+			if _, err := os.Stat("/sys/class/net/" + iface); err == nil {
+				interfaces = append(interfaces, iface)
+			}
+		}
+		return interfaces
 	}
 
 	// Default to eth0 and wlan0 if they exist

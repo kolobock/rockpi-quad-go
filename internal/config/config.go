@@ -10,12 +10,13 @@ import (
 )
 
 type Config struct {
-	Fan  FanConfig
-	OLED OLEDConfig
-	Disk DiskConfig
-	Key  KeyConfig
-	Time TimeConfig
-	Env  EnvConfig
+	Fan     FanConfig
+	OLED    OLEDConfig
+	Disk    DiskConfig
+	Network NetworkConfig
+	Key     KeyConfig
+	Time    TimeConfig
+	Env     EnvConfig
 }
 
 type EnvConfig struct {
@@ -62,6 +63,10 @@ type DiskConfig struct {
 	SpaceUsageMountPoints []string
 	IOUsageMountPoints    []string
 	TempDisks             []string
+}
+
+type NetworkConfig struct {
+	Interfaces []string
 }
 
 type KeyConfig struct {
@@ -153,6 +158,12 @@ func Load(path string) (*Config, error) {
 	}
 	if tempDisks := diskSec.Key("disks_temp").String(); tempDisks != "" {
 		cfg.Disk.TempDisks = strings.Split(tempDisks, ",")
+	}
+
+	// Load network configuration
+	netSec := iniFile.Section("network")
+	if interfaces := netSec.Key("interfaces").String(); interfaces != "" {
+		cfg.Network.Interfaces = strings.Split(interfaces, ",")
 	}
 
 	// Load key configuration
