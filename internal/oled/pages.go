@@ -71,8 +71,9 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 		return items
 	}
 
-	// First line: root partition (full width)
-	items = append(items, TextItem{X: 0, Y: -2, Text: usage[0], FontSize: 11})
+	// First line: "Usage:" label and root partition (two columns)
+	items = append(items, TextItem{X: 0, Y: -2, Text: "Usage:", FontSize: 11})
+	items = append(items, TextItem{X: 64, Y: -2, Text: usage[0], FontSize: 11})
 
 	// Second line: sda and sdb (two columns)
 	if len(usage) > 1 {
@@ -132,14 +133,20 @@ func (p *DiskTempPage) GetPageText() []TextItem {
 	temps := p.ctrl.getDiskTemperatures()
 	items := []TextItem{{X: 0, Y: -2, Text: "Disk Temps:", FontSize: 11}}
 
-	y := 10
-	for i, temp := range temps {
-		items = append(items, TextItem{X: 0, Y: y, Text: temp, FontSize: 11})
-		if i == 0 {
-			y = 21
-		} else {
-			break // Only 2 lines fit
-		}
+	// Second line: first two temps (two columns)
+	if len(temps) > 0 {
+		items = append(items, TextItem{X: 0, Y: 10, Text: temps[0], FontSize: 11})
+	}
+	if len(temps) > 1 {
+		items = append(items, TextItem{X: 64, Y: 10, Text: temps[1], FontSize: 11})
+	}
+
+	// Third line: next two temps (two columns)
+	if len(temps) > 2 {
+		items = append(items, TextItem{X: 0, Y: 21, Text: temps[2], FontSize: 11})
+	}
+	if len(temps) > 3 {
+		items = append(items, TextItem{X: 64, Y: 21, Text: temps[3], FontSize: 11})
 	}
 
 	return items
