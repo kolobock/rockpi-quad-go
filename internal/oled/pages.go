@@ -48,7 +48,7 @@ func (p *SystemInfoPage1) GetPageText() []TextItem {
 	if cpuFan == 0 && diskFan == 0 {
 		fanText = "Fan: off"
 	} else {
-		fanText = fmt.Sprintf("Fan C-%2.0f%%, D-%2.0f%%", cpuFan, diskFan)
+		fanText = fmt.Sprintf("Fan: C-%2.0f%%, D-%2.0f%%", cpuFan, diskFan)
 	}
 
 	return []TextItem{
@@ -414,11 +414,32 @@ func (c *Controller) getDiskRate(diskName string) (float64, float64) {
 func (c *Controller) getDiskTemperatures() []string {
 	var temps []string
 
-	for _, diskDev := range c.cfg.Disk.TempDisks {
+	// Auto-detect disks if TempDisks is empty or contains invalid entries
+	var diskDevs []string
+	if len(c.cfg.Disk.TempDisks) > 0 && c.cfg.Disk.TempDisks[0] != "true" && strings.HasPrefix(c.cfg.Disk.TempDisks[0], "/dev/") {
+		diskDevs = c.cfg.Disk.TempDisks
+	} else {
+		// Auto-detect /dev/sd* disks
+		cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print \"/dev/\"$1}'")
+		output, err := cmd.Output()
+		if err == nil {
+			diskList := strings.Split(strings.TrimSpace(string(output)), "\n")
+			for _, d := range diskList {
+				if d != "" {
+					diskDevs = append(diskDevs, d)
+				}
+			}
+		}
+	}
+
+	for _, diskDev := range diskDevs {
 		temp, err := disk.GetTemperature(diskDev)
+		diskName := strings.TrimPrefix(diskDev, "/dev/")
 		if err == nil && temp > 0 {
-			diskName := strings.TrimPrefix(diskDev, "/dev/")
 			temps = append(temps, fmt.Sprintf("%s %.0f°C", diskName, temp))
+		} else {
+			// Show disk even if temp reading failed
+			temps = append(temps, fmt.Sprintf("%s --°C", diskName))
 		}
 	}
 
