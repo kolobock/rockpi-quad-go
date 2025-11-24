@@ -173,12 +173,6 @@ The following environment variables are loaded from `/etc/rockpi-quad.env`:
 GOOS=linux GOARCH=arm64 go build -o rockpi-quad ./cmd/rockpi-quad
 ```
 
-## Testing
-
-```bash
-go test ./...
-```
-
 ## Project Structure
 
 ```
