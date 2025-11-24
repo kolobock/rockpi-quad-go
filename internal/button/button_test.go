@@ -3,6 +3,8 @@ package button
 import (
 	"testing"
 	"time"
+
+	"github.com/kolobock/rockpi-quad-go/internal/config"
 )
 
 func TestEventType(t *testing.T) {
@@ -26,7 +28,21 @@ func TestEventType(t *testing.T) {
 }
 
 func TestControllerCreation(t *testing.T) {
-	ctrl, err := New("", "", 0.7, 1.8)
+	cfg := &config.Config{
+		Env: config.EnvConfig{
+			ButtonChip: "",
+			ButtonLine: "",
+		},
+		Time: config.TimeConfig{
+			Twice: 0.7,
+			Press: 1.8,
+		},
+		Fan: config.FanConfig{
+			Syslog: false,
+		},
+	}
+
+	ctrl, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New failed: %v", err)
 	}
@@ -36,5 +52,57 @@ func TestControllerCreation(t *testing.T) {
 	}
 	if ctrl.twiceWindow != time.Duration(0.7*float64(time.Second)) {
 		t.Errorf("twiceWindow = %v, want %v", ctrl.twiceWindow, time.Duration(0.7*float64(time.Second)))
+	}
+	if ctrl.pressTime != time.Duration(1.8*float64(time.Second)) {
+		t.Errorf("pressTime = %v, want %v", ctrl.pressTime, time.Duration(1.8*float64(time.Second)))
+	}
+}
+
+func TestControllerCreationWithSyslog(t *testing.T) {
+	cfg := &config.Config{
+		Env: config.EnvConfig{
+			ButtonChip: "",
+			ButtonLine: "",
+		},
+		Time: config.TimeConfig{
+			Twice: 0.7,
+			Press: 1.8,
+		},
+		Fan: config.FanConfig{
+			Syslog: true,
+		},
+	}
+
+	ctrl, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	if ctrl.syslogger == nil {
+		t.Error("syslogger should not be nil when Syslog is enabled")
+	}
+}
+
+func TestPressChan(t *testing.T) {
+	ctrl := &Controller{
+		pressChan: make(chan EventType, 10),
+	}
+
+	ch := ctrl.PressChan()
+	if ch == nil {
+		t.Error("PressChan returned nil")
+	}
+
+	go func() {
+		ctrl.pressChan <- Click
+	}()
+
+	select {
+	case evt := <-ch:
+		if evt != Click {
+			t.Errorf("received event = %v, want %v", evt, Click)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("timeout waiting for event")
 	}
 }

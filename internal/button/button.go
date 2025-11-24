@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/warthog618/go-gpiocdev"
 )
 
@@ -21,6 +22,7 @@ const (
 
 // Controller handles button press monitoring
 type Controller struct {
+	cfg         *config.Config
 	line        *gpiocdev.Line
 	pressChan   chan EventType
 	syslogger   *syslog.Writer
@@ -30,20 +32,32 @@ type Controller struct {
 }
 
 // New creates a new button controller using chip and line number
-func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error) {
-	syslogger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
-	if err != nil {
-		return nil, err
+func New(cfg *config.Config) (*Controller, error) {
+	chip := cfg.Env.ButtonChip
+	line := cfg.Env.ButtonLine
+	twiceWindow := cfg.Time.Twice
+	pressTime := cfg.Time.Press
+
+	ctrl := &Controller{
+		cfg:         cfg,
+		pressChan:   make(chan EventType, 10),
+		twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
+		pressTime:   time.Duration(pressTime * float64(time.Second)),
+	}
+
+	if cfg.Fan.Syslog {
+		syslogger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
+		if err != nil {
+			return nil, err
+		}
+		ctrl.syslogger = syslogger
 	}
 
 	if line == "" {
-		syslogger.Info("Button monitoring disabled - no pin configured")
-		return &Controller{
-			pressChan:   make(chan EventType, 10),
-			syslogger:   syslogger,
-			twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
-			pressTime:   time.Duration(pressTime * float64(time.Second)),
-		}, nil
+		if ctrl.syslogger != nil {
+			ctrl.syslogger.Info("Button monitoring disabled - no pin configured")
+		}
+		return ctrl, nil
 	}
 
 	if chip == "" {
@@ -61,22 +75,13 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 
 	lineNum := 0
 	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
-		syslogger.Warning("Invalid GPIO line number: " + line)
-		return &Controller{
-			pressChan:   make(chan EventType, 10),
-			syslogger:   syslogger,
-			twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
-			pressTime:   time.Duration(pressTime * float64(time.Second)),
-		}, nil
+		if ctrl.syslogger != nil {
+			ctrl.syslogger.Warning("Invalid GPIO line number: " + line)
+		}
+		return ctrl, nil
 	}
 
-	ctrl := &Controller{
-		pressChan:   make(chan EventType, 10),
-		syslogger:   syslogger,
-		twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
-		pressTime:   time.Duration(pressTime * float64(time.Second)),
-		eventChan:   make(chan gpiocdev.LineEvent, 10),
-	}
+	ctrl.eventChan = make(chan gpiocdev.LineEvent, 10)
 
 	eventHandler := func(evt gpiocdev.LineEvent) {
 		select {
@@ -91,13 +96,10 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 		gpiocdev.WithBothEdges,
 		gpiocdev.WithEventHandler(eventHandler))
 	if err != nil {
-		syslogger.Warning("Failed to request button line: " + err.Error())
-		return &Controller{
-			pressChan:   make(chan EventType, 10),
-			syslogger:   syslogger,
-			twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
-			pressTime:   time.Duration(pressTime * float64(time.Second)),
-		}, nil
+		if ctrl.syslogger != nil {
+			ctrl.syslogger.Warning("Failed to request button line: " + err.Error())
+		}
+		return ctrl, nil
 	}
 
 	ctrl.line = l
@@ -105,7 +107,9 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 	for len(ctrl.eventChan) > 0 {
 		<-ctrl.eventChan
 	}
-	syslogger.Info("Button monitoring enabled on " + chip + " line " + line)
+	if ctrl.syslogger != nil {
+		ctrl.syslogger.Info("Button monitoring enabled on " + chip + " line " + line)
+	}
 	return ctrl, nil
 }
 
@@ -125,7 +129,9 @@ func (c *Controller) Run(ctx context.Context) {
 			if event != "" {
 				select {
 				case c.pressChan <- event:
-					c.syslogger.Info("Button event: " + string(event))
+					if c.syslogger != nil {
+						c.syslogger.Info("Button event: " + string(event))
+					}
 				default:
 					// Channel full, skip
 				}

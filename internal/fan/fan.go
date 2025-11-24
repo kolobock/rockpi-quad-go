@@ -69,11 +69,6 @@ func New(cfg *config.Config) (*Controller, error) {
 		if err == nil {
 			ctrl.syslogger = logger
 		}
-	} else {
-		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
-		if err == nil {
-			ctrl.syslogger = logger
-		}
 	}
 
 	return ctrl, nil

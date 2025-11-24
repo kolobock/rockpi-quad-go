@@ -99,9 +99,11 @@ func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 		fanCtrl:   fanCtrl,
 	}
 
-	logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
-	if err == nil {
-		c.syslogger = logger
+	if cfg.Fan.Syslog {
+		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
+		if err == nil {
+			c.syslogger = logger
+		}
 	}
 
 	c.updateNetworkStats()
