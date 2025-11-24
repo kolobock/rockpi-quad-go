@@ -243,16 +243,38 @@ func (c *Controller) getDiskUsage() []string {
 		}
 	}
 
-	// Add configured mount points - show device name instead of mount point
+	// Collect all disk usages into a map for sorting
+	diskMap := make(map[string]string)
 	for _, mnt := range c.cfg.Disk.SpaceUsageMountPoints {
 		cmd := fmt.Sprintf("df -h %s | awk 'NR==2{print $1, $5}'", mnt)
 		out, err := exec.Command("sh", "-c", cmd).Output()
 		if err == nil && len(out) > 0 {
 			parts := strings.Fields(strings.TrimSpace(string(out)))
 			if len(parts) >= 2 {
-				usage = append(usage, stripDeviceName(parts[0])+" "+parts[1])
+				diskName := stripDeviceName(parts[0])
+				diskMap[diskName] = diskName + " " + parts[1]
 			}
 		}
+	}
+
+	// Sort disk names alphabetically (sda, sdb, sdc, sdd)
+	var diskNames []string
+	for name := range diskMap {
+		diskNames = append(diskNames, name)
+	}
+
+	// Simple sort for disk names
+	for i := 0; i < len(diskNames); i++ {
+		for j := i + 1; j < len(diskNames); j++ {
+			if diskNames[i] > diskNames[j] {
+				diskNames[i], diskNames[j] = diskNames[j], diskNames[i]
+			}
+		}
+	}
+
+	// Add sorted disk usages
+	for _, name := range diskNames {
+		usage = append(usage, diskMap[name])
 	}
 
 	return usage
