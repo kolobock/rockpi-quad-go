@@ -5,8 +5,8 @@ import (
 	"image"
 
 	i2c "github.com/d2r2/go-i2c"
-	"github.com/d2r2/go-logger"
-	l "github.com/kolobock/rockpi-quad-go/internal/logger"
+	i2cl "github.com/d2r2/go-logger"
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 )
 
 // SSD1306 command constants
@@ -51,7 +51,7 @@ type SSD1306 struct {
 
 // NewSSD1306 creates a new SSD1306 driver instance
 func NewSSD1306(width, height int) (*SSD1306, error) {
-	logger.ChangePackageLogLevel("i2c", logger.InfoLevel)
+	i2cl.ChangePackageLogLevel("i2c", i2cl.InfoLevel)
 
 	i2cBus, err := i2c.NewI2C(ssd1306I2CAddr, 1)
 	if err != nil {
@@ -64,7 +64,7 @@ func NewSSD1306(width, height int) (*SSD1306, error) {
 		height: height,
 		buffer: make([]byte, width*height/8),
 	}
-	l.Infof("[SSD1306] Initialized %dx%d display, buffer size: %d bytes", width, height, len(d.buffer))
+	logger.Infof("[SSD1306] Initialized %dx%d display, buffer size: %d bytes", width, height, len(d.buffer))
 
 	if err := d.init(); err != nil {
 		i2cBus.Close()
