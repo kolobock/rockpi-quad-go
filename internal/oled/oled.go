@@ -75,13 +75,11 @@ func loadFont(path string, size float64) (font.Face, error) {
 }
 
 func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
-	// Create SSD1306 display driver
 	display, err := NewSSD1306(displayWidth, displayHeight)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SSD1306 display: %w", err)
 	}
 
-	// Load TTF fonts with different sizes
 	fonts := make(map[int]font.Face)
 	for _, size := range []int{10, 11, 12, 14} {
 		fontFace, err := loadFont("fonts/DejaVuSansMono-Bold.ttf", float64(size))
@@ -101,18 +99,15 @@ func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 		fanCtrl:   fanCtrl,
 	}
 
-	// Initialize syslog
 	logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
 	if err == nil {
 		c.syslogger = logger
 	}
 
-	// Initialize network and disk stats
 	c.updateNetworkStats()
 	c.updateDiskStats()
 	c.initTempDisks()
 
-	// Show welcome message
 	c.showWelcome()
 
 	return c, nil
@@ -121,7 +116,6 @@ func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error {
 	c.showWelcome()
 
-	// Generate all pages
 	c.pages = c.generatePages()
 	if len(c.pages) == 0 {
 		if c.syslogger != nil {
@@ -142,7 +136,6 @@ func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error 
 		case <-ticker.C:
 			c.nextPage()
 		case <-buttonChan:
-			// Button pressed - advance to next page
 			c.nextPage()
 		}
 	}
@@ -152,7 +145,6 @@ func (c *Controller) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Clear display
 	c.clearImage()
 	c.displayToDevice()
 
@@ -171,14 +163,11 @@ func (c *Controller) clearImage() {
 }
 
 func (c *Controller) drawText(x, y int, text string, fontSize int) {
-	// Default to size 11 if not specified or invalid
 	fontFace, ok := c.fonts[fontSize]
 	if !ok {
 		fontFace = c.fonts[11]
 	}
 
-	// Python PIL draws from top-left corner at (x, y)
-	// Go font.Drawer uses baseline, so we need to add the ascent
 	metrics := fontFace.Metrics()
 	ascent := metrics.Ascent.Ceil()
 

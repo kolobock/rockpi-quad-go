@@ -50,10 +50,8 @@ type SSD1306 struct {
 
 // NewSSD1306 creates a new SSD1306 driver instance
 func NewSSD1306(width, height int) (*SSD1306, error) {
-	// Disable d2r2/go-logger debug output
 	logger.ChangePackageLogLevel("i2c", logger.InfoLevel)
 
-	// Open I2C bus 1 (default on Raspberry Pi)
 	i2cBus, err := i2c.NewI2C(ssd1306I2CAddr, 1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open I2C: %w", err)
@@ -67,7 +65,6 @@ func NewSSD1306(width, height int) (*SSD1306, error) {
 	}
 	fmt.Printf("[SSD1306] Initialized %dx%d display, buffer size: %d bytes\n", width, height, len(d.buffer))
 
-	// Initialize the display
 	if err := d.init(); err != nil {
 		i2cBus.Close()
 		return nil, fmt.Errorf("failed to initialize SSD1306: %w", err)
@@ -78,38 +75,31 @@ func NewSSD1306(width, height int) (*SSD1306, error) {
 
 // init initializes the SSD1306 display with proper configuration
 func (d *SSD1306) init() error {
-	// Initialization sequence matching Adafruit CircuitPython library
 	cmds := []byte{
 		ssd1306DisplayOff,
-		// Address setting - Use PAGE addressing mode for d2r2/go-i2c compatibility
-		ssd1306MemoryMode, 0x02, // Page Addressing Mode
-		// Resolution and layout
+		ssd1306MemoryMode, 0x02,
 		ssd1306SetDisplayClockDiv, 0x80,
 		ssd1306SetMultiplex, byte(d.height - 1),
 		ssd1306SetDisplayOffset, 0x00,
 		ssd1306SetStartLine | 0x00,
-		ssd1306SegRemap | 0x01, // Column addr 127 mapped to SEG0
-		ssd1306ComScanDec,      // Scan from COM[N] to COM0
+		ssd1306SegRemap | 0x01,
+		ssd1306ComScanDec,
 	}
 
-	// COM pins configuration depends on display height
 	if d.height == 32 {
 		cmds = append(cmds, ssd1306SetComPins, 0x02)
 	} else if d.height == 64 {
 		cmds = append(cmds, ssd1306SetComPins, 0x12)
 	}
 
-	// Continue with timing and display settings
 	cmds = append(cmds,
 		ssd1306SetPrecharge, 0xF1,
 		ssd1306SetVcomDetect, 0x40,
-		// Display settings
 		ssd1306SetContrast, 0xFF,
-		ssd1306DisplayAllOnResume,  // 0xA4 - output follows RAM contents
-		ssd1306NormalDisplay,       // 0xA6 - not inverted
-		ssd1306SetIrefSelect, 0x30, // Enable internal IREF during display on
-		// Charge pump
-		ssd1306ChargePump, 0x14, // Enable (internal VCC)
+		ssd1306DisplayAllOnResume,
+		ssd1306NormalDisplay,
+		ssd1306SetIrefSelect, 0x30,
+		ssd1306ChargePump, 0x14,
 	)
 
 	for _, cmd := range cmds {
@@ -118,31 +108,24 @@ func (d *SSD1306) init() error {
 		}
 	}
 
-	// Turn on display
 	if err := d.writeCmd(ssd1306DisplayOn); err != nil {
 		return err
 	}
 
-	// Fill and show to complete initialization
 	return d.Clear()
 }
 
 // writeCmd sends a command byte to the display
 func (d *SSD1306) writeCmd(cmd byte) error {
-	// Commands are sent with control byte 0x00 (Co=0, D/C=0)
 	_, err := d.i2c.WriteBytes([]byte{0x00, cmd})
 	return err
 }
 
 // Display updates the OLED display with the contents of the image
 func (d *SSD1306) Display(img *image.Gray) error {
-	// Convert image to SSD1306 format (pages of 8 vertical pixels)
-	// MVLSB format: bit 0 = top pixel, bit 7 = bottom pixel of each byte
 	for page := 0; page < d.height/8; page++ {
 		for x := 0; x < d.width; x++ {
 			var b byte
-			// Pack 8 vertical pixels into one byte
-			// bit 0 = top pixel (y=page*8), bit 7 = bottom pixel (y=page*8+7)
 			for bit := 0; bit < 8; bit++ {
 				y := page*8 + bit
 				if img.GrayAt(x, y).Y > 128 {
@@ -151,25 +134,20 @@ func (d *SSD1306) Display(img *image.Gray) error {
 			}
 			d.buffer[page*d.width+x] = b
 		}
-	} // Use page addressing mode: set page, set column, then write data
-	// For each page, send control byte 0x40 followed by all page data
+	}
 	for page := 0; page < d.height/8; page++ {
-		// Set page address
 		if err := d.writeCmd(0xB0 | byte(page)); err != nil {
 			return err
 		}
-		// Set column start (lower nibble)
 		if err := d.writeCmd(ssd1306SetLowColumn | 0x00); err != nil {
 			return err
 		}
-		// Set column start (upper nibble)
 		if err := d.writeCmd(ssd1306SetHighColumn | 0x00); err != nil {
 			return err
 		}
 
-		// Write page data: control byte 0x40 + 128 data bytes
 		pageData := make([]byte, d.width+1)
-		pageData[0] = 0x40 // Data continuation mode
+		pageData[0] = 0x40
 		copy(pageData[1:], d.buffer[page*d.width:(page+1)*d.width])
 
 		if _, err := d.i2c.WriteBytes(pageData); err != nil {
@@ -182,15 +160,12 @@ func (d *SSD1306) Display(img *image.Gray) error {
 
 // Clear clears the display (turns all pixels off)
 func (d *SSD1306) Clear() error {
-	// Clear buffer
 	for i := 0; i < len(d.buffer); i++ {
 		d.buffer[i] = 0
 	}
 
-	// Write using page addressing
 	zeroPage := make([]byte, d.width+1)
-	zeroPage[0] = 0x40 // Data mode
-	// rest are zeros by default
+	zeroPage[0] = 0x40
 
 	for page := 0; page < d.height/8; page++ {
 		if err := d.writeCmd(0xB0 | byte(page)); err != nil {

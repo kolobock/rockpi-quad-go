@@ -46,23 +46,19 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 		}, nil
 	}
 
-	// Default to gpiochip0 if not specified
 	if chip == "" {
 		chip = "gpiochip0"
 	}
 
-	// If chip is just a number, prepend "gpiochip"
 	var chipNum int
 	if _, err := fmt.Sscanf(chip, "%d", &chipNum); err == nil {
 		chip = "gpiochip" + chip
 	}
 
-	// Ensure chip path starts with /dev/
 	if !strings.HasPrefix(chip, "/dev/") {
 		chip = "/dev/" + chip
 	}
 
-	// Convert line string to int
 	lineNum := 0
 	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
 		syslogger.Warning("Invalid GPIO line number: " + line)
@@ -82,16 +78,13 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 		eventChan:   make(chan gpiocdev.LineEvent, 10),
 	}
 
-	// Create event handler that forwards events to our channel
 	eventHandler := func(evt gpiocdev.LineEvent) {
 		select {
 		case ctrl.eventChan <- evt:
 		default:
-			// Channel full, skip
 		}
 	}
 
-	// Open GPIO chip and request line as input with pull-up and both edge detection
 	l, err := gpiocdev.RequestLine(chip, lineNum,
 		gpiocdev.AsInput,
 		gpiocdev.WithPullUp,
@@ -108,7 +101,6 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 	}
 
 	ctrl.line = l
-	// Drain any initial events from startup noise
 	time.Sleep(100 * time.Millisecond)
 	for len(ctrl.eventChan) > 0 {
 		<-ctrl.eventChan
@@ -120,7 +112,6 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 // Run starts monitoring button presses and detects click/double-click/long-press
 func (c *Controller) Run(ctx context.Context) {
 	if c.line == nil {
-		// No button configured, just wait for context cancellation
 		<-ctx.Done()
 		return
 	}
@@ -145,38 +136,32 @@ func (c *Controller) Run(ctx context.Context) {
 
 // detectButtonEvent waits for and detects the type of button press
 func (c *Controller) detectButtonEvent(ctx context.Context) EventType {
-	// Wait for button press (falling edge)
 	var pressStart time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return ""
 		case evt := <-c.eventChan:
-			// Check if it's a falling edge (button pressed)
 			if evt.Type == gpiocdev.LineEventFallingEdge {
 				pressStart = time.Now()
 				goto waitForRelease
 			}
-			// Ignore rising edges while waiting for press
 		case <-time.After(200 * time.Millisecond):
 			return ""
 		}
 	}
 
 waitForRelease:
-	// Wait for button release (rising edge) or long-press timeout
 	for {
 		select {
 		case <-ctx.Done():
 			return ""
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventRisingEdge {
-				// Button released - check for double-click
 				goto checkDoubleClick
 			}
 		case <-time.After(50 * time.Millisecond):
 			if time.Since(pressStart) >= c.pressTime {
-				// Long press detected - wait for release
 				for {
 					select {
 					case <-ctx.Done():
@@ -186,7 +171,6 @@ waitForRelease:
 							return LongPress
 						}
 					case <-time.After(50 * time.Millisecond):
-						// Continue waiting
 					}
 				}
 			}
@@ -194,7 +178,6 @@ waitForRelease:
 	}
 
 checkDoubleClick:
-	// Wait for potential second click within the double-click window
 	deadline := time.Now().Add(c.twiceWindow)
 	for time.Now().Before(deadline) {
 		select {
@@ -202,29 +185,24 @@ checkDoubleClick:
 			return Click
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventFallingEdge {
-				// Second click detected - wait for release and drain channel
 				for {
 					select {
 					case <-ctx.Done():
 						return DoubleClick
 					case evt := <-c.eventChan:
 						if evt.Type == gpiocdev.LineEventRisingEdge {
-							// Drain any remaining events in the channel
 							c.drainEventChannel()
 							return DoubleClick
 						}
 					case <-time.After(50 * time.Millisecond):
-						// Continue waiting
 					}
 				}
 			}
 		case <-time.After(deadline.Sub(time.Now())):
-			// Timeout - single click
 			return Click
 		}
 	}
 
-	// No second click - it's a single click
 	return Click
 }
 
@@ -233,9 +211,7 @@ func (c *Controller) drainEventChannel() {
 	for {
 		select {
 		case <-c.eventChan:
-			// Drain the event
 		default:
-			// Channel is empty
 			return
 		}
 	}

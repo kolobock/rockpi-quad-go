@@ -83,8 +83,6 @@ type TimeConfig struct {
 func Load(path string) (*Config, error) {
 	cfg := &Config{}
 
-	// Load environment configuration from OS environment
-	// (systemd loads these from /etc/rockpi-quad.env via EnvironmentFile)
 	cfg.Env.SDA = os.Getenv("SDA")
 	cfg.Env.SCL = os.Getenv("SCL")
 	cfg.Env.OLEDReset = os.Getenv("OLED_RESET")
@@ -102,20 +100,17 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to load config file: %w", err)
 	}
 
-	// Load fan configuration
 	fanSec := iniFile.Section("fan")
 	cfg.Fan.LV0 = fanSec.Key("lv0").MustFloat64(35)
 	cfg.Fan.LV1 = fanSec.Key("lv1").MustFloat64(40)
 	cfg.Fan.LV2 = fanSec.Key("lv2").MustFloat64(45)
 	cfg.Fan.LV3 = fanSec.Key("lv3").MustFloat64(50)
 
-	// CPU fan levels (fallback to general levels)
 	cfg.Fan.LV0C = fanSec.Key("lv0c").MustFloat64(cfg.Fan.LV0)
 	cfg.Fan.LV1C = fanSec.Key("lv1c").MustFloat64(cfg.Fan.LV1)
 	cfg.Fan.LV2C = fanSec.Key("lv2c").MustFloat64(cfg.Fan.LV2)
 	cfg.Fan.LV3C = fanSec.Key("lv3c").MustFloat64(cfg.Fan.LV3)
 
-	// Disk fan levels (fallback to general levels)
 	cfg.Fan.LV0F = fanSec.Key("lv0f").MustFloat64(cfg.Fan.LV0)
 	cfg.Fan.LV1F = fanSec.Key("lv1f").MustFloat64(cfg.Fan.LV1)
 	cfg.Fan.LV2F = fanSec.Key("lv2f").MustFloat64(cfg.Fan.LV2)
@@ -128,7 +123,6 @@ func Load(path string) (*Config, error) {
 	cfg.Fan.TempDisks = fanSec.Key("temp_disks").MustBool(false)
 	cfg.Fan.Syslog = fanSec.Key("syslog").MustBool(false)
 
-	// Load environment variables for PWM
 	cfg.Fan.HardwarePWM = os.Getenv("HARDWARE_PWM") == "1"
 	cfg.Fan.CPUPWMChip = os.Getenv("PWM_CHIP")
 	if cfg.Fan.CPUPWMChip == "" {
@@ -142,13 +136,11 @@ func Load(path string) (*Config, error) {
 	cfg.Fan.TBPWMChip = cfg.Fan.CPUPWMChip
 	cfg.Fan.Polarity = os.Getenv("POLARITY")
 
-	// Load OLED configuration
 	oledSec := iniFile.Section("oled")
 	cfg.OLED.Enabled = true
 	cfg.OLED.Rotate = oledSec.Key("rotate").MustBool(false)
 	cfg.OLED.Fahrenheit = oledSec.Key("f-temp").MustBool(false)
 
-	// Load disk configuration
 	diskSec := iniFile.Section("disk")
 	if mountPoints := diskSec.Key("space_usage_mnt_points").String(); mountPoints != "" {
 		cfg.Disk.SpaceUsageMountPoints = strings.Split(mountPoints, "|")
@@ -160,19 +152,16 @@ func Load(path string) (*Config, error) {
 		cfg.Disk.TempDisks = strings.Split(tempDisks, ",")
 	}
 
-	// Load network configuration
 	netSec := iniFile.Section("network")
 	if interfaces := netSec.Key("interfaces").String(); interfaces != "" {
 		cfg.Network.Interfaces = strings.Split(interfaces, ",")
 	}
 
-	// Load key configuration
 	keySec := iniFile.Section("key")
 	cfg.Key.Click = keySec.Key("click").MustString("slider")
 	cfg.Key.Twice = keySec.Key("twice").MustString("switch")
 	cfg.Key.Press = keySec.Key("press").MustString("poweroff")
 
-	// Load time configuration
 	timeSec := iniFile.Section("time")
 	cfg.Time.Twice = timeSec.Key("twice").MustFloat64(0.7)
 	cfg.Time.Press = timeSec.Key("press").MustFloat64(1.8)

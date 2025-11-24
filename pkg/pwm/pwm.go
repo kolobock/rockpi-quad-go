@@ -26,23 +26,19 @@ func New(chip string, channel int) (*PWM, error) {
 		period:   defaultPeriod,
 	}
 
-	// Export PWM if not already exported
 	if _, err := os.Stat(p.basePath); os.IsNotExist(err) {
 		exportPath := filepath.Join("/sys/class/pwm", chip, "export")
 		if err := os.WriteFile(exportPath, []byte(strconv.Itoa(channel)), 0644); err != nil {
-			// Ignore "device or resource busy" error (already exported)
 			if !strings.Contains(err.Error(), "device or resource busy") {
 				return nil, fmt.Errorf("failed to export PWM: %w", err)
 			}
 		}
 	}
 
-	// Set period
 	if err := p.writeSysfs("period", strconv.FormatInt(p.period, 10)); err != nil {
 		return nil, err
 	}
 
-	// Enable PWM
 	if err := p.writeSysfs("enable", "1"); err != nil {
 		return nil, err
 	}
@@ -69,7 +65,6 @@ func (p *PWM) SetDutyCycle(dutyCycle float64) error {
 }
 
 func (p *PWM) Close() error {
-	// Set to 0 duty cycle
 	p.SetDutyCycle(0)
 	return nil
 }

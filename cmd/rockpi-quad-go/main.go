@@ -18,26 +18,21 @@ import (
 )
 
 func main() {
-	// Load configuration
 	cfg, err := config.Load("/etc/rockpi-quad.conf")
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Enable SATA controller if no disks detected
 	disk.EnableSATAController(cfg.Env.SATAChip, cfg.Env.SATALine1, cfg.Env.SATALine2)
 
-	// Create context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Setup signal handling
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	var wg sync.WaitGroup
 
-	// Start fan controller
 	fanCtrl, err := fan.New(cfg)
 	if err != nil {
 		log.Fatalf("Failed to create fan controller: %v", err)
@@ -52,7 +47,6 @@ func main() {
 		}
 	}()
 
-	// Start button controller
 	buttonCtrl, err := button.New(cfg.Env.ButtonChip, cfg.Env.ButtonLine, cfg.Time.Twice, cfg.Time.Press)
 	if err != nil {
 		log.Printf("Failed to create button controller: %v", err)
@@ -66,7 +60,6 @@ func main() {
 		}()
 	}
 
-	// Start OLED display if enabled
 	if cfg.OLED.Enabled {
 		oledCtrl, err := oled.New(cfg, fanCtrl)
 		if err != nil {
@@ -76,47 +69,44 @@ func main() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				// Create button channel - map all events to page advance for now
 				buttonChan := make(chan struct{}, 10)
+
 				if buttonCtrl != nil {
 					go func() {
+						time.Sleep(1500 * time.Millisecond)
+
 						for event := range buttonCtrl.PressChan() {
 							action := getButtonAction(cfg, event)
 							log.Printf("Button event: %s (action: %s)", event, action)
 
-							// Execute the configured action
 							switch action {
 							case "slider":
-								// Advance OLED page
 								select {
 								case buttonChan <- struct{}{}:
 								default:
 								}
 							case "switch":
-								// Toggle fan on/off
 								fanCtrl.ToggleFan()
 							case "poweroff":
 								log.Println("Poweroff requested via button press")
 								go func() {
-									time.Sleep(1 * time.Second) // Give time for log to be written
+									time.Sleep(1 * time.Second)
 									if err := exec.Command("poweroff").Run(); err != nil {
 										log.Printf("Failed to execute poweroff: %v", err)
 									}
 								}()
-								cancel() // Trigger shutdown
+								cancel()
 							case "reboot":
 								log.Println("Reboot requested via button press")
 								go func() {
-									time.Sleep(1 * time.Second) // Give time for log to be written
+									time.Sleep(1 * time.Second)
 									if err := exec.Command("reboot").Run(); err != nil {
 										log.Printf("Failed to execute reboot: %v", err)
 									}
 								}()
-								cancel() // Trigger shutdown (system will handle reboot)
+								cancel()
 							case "none":
-								// Do nothing
 							default:
-								// Execute custom command via shell
 								log.Printf("Executing custom command: %s", action)
 								go func() {
 									cmd := exec.Command("sh", "-c", action)
@@ -137,12 +127,10 @@ func main() {
 		}
 	}
 
-	// Wait for signal
 	<-sigCh
 	log.Println("Shutting down...")
 	cancel()
 
-	// Wait for goroutines with timeout
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()

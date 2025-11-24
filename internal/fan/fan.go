@@ -42,19 +42,16 @@ func New(cfg *config.Config) (*Controller, error) {
 		enabled:  true,
 	}
 
-	// Initialize CPU fan PWM
 	cpuPWM, err := pwm.New(cfg.Fan.CPUPWMChip, cfg.Fan.CPUPWMChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init CPU PWM: %w", err)
 	}
 	ctrl.cpuPWM = cpuPWM
 
-	// Set polarity
 	if cfg.Fan.Polarity == "inversed" {
 		cpuPWM.SetInversed(true)
 	}
 
-	// Initialize disk fan PWM if different channel
 	if cfg.Fan.TBPWMChannel != cfg.Fan.CPUPWMChannel {
 		diskPWM, err := pwm.New(cfg.Fan.TBPWMChip, cfg.Fan.TBPWMChannel)
 		if err != nil {
@@ -67,14 +64,12 @@ func New(cfg *config.Config) (*Controller, error) {
 		}
 	}
 
-	// Initialize syslog if enabled
 	if cfg.Fan.Syslog {
 		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
 		if err == nil {
 			ctrl.syslogger = logger
 		}
 	} else {
-		// Still create syslog for debug messages even if not configured
 		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
 		if err == nil {
 			ctrl.syslogger = logger
@@ -92,12 +87,10 @@ func (c *Controller) ToggleFan() {
 	c.enabled = !c.enabled
 
 	if c.enabled {
-		// Re-enabled - resume temperature-based control
 		if c.syslogger != nil {
 			c.syslogger.Info("Fan control enabled - temperature-based control resumed")
 		}
 	} else {
-		// Disabled - set fans to full speed (0% if inverted, 100% if normal)
 		fullSpeed := 100.0
 		if c.cfg.Fan.Polarity == "inversed" {
 			fullSpeed = 0.0
@@ -137,7 +130,6 @@ func (c *Controller) update() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// If fan control is disabled, keep fans at 100%
 	if !c.enabled {
 		return nil
 	}
@@ -155,7 +147,6 @@ func (c *Controller) update() error {
 		diskDC = MinDutyCycle
 	}
 
-	// Update PWM if changed
 	if cpuDC != c.lastCPUDC {
 		if err := c.cpuPWM.SetDutyCycle(cpuDC); err != nil {
 			return err
@@ -172,7 +163,6 @@ func (c *Controller) update() error {
 		}
 	}
 
-	// Log to syslog
 	if c.syslogger != nil {
 		c.syslogger.Info(fmt.Sprintf("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f",
 			cpuTemp, cpuDC*100, diskTemp, diskDC*100))
@@ -182,14 +172,12 @@ func (c *Controller) update() error {
 }
 
 func (c *Controller) getTemperatures() (cpu, disk float64) {
-	// Read CPU temperature
 	if data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp"); err == nil {
 		if temp, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64); err == nil {
 			cpu = temp / 1000.0
 		}
 	}
 
-	// Read disk temperature if enabled and cache it
 	if c.cfg.Fan.TempDisks && time.Since(c.lastTemp) > 10*time.Second {
 		c.lastDiskTemp = c.getMaxDiskTemp()
 		c.lastTemp = time.Now()
@@ -200,7 +188,6 @@ func (c *Controller) getTemperatures() (cpu, disk float64) {
 }
 
 func (c *Controller) getMaxDiskTemp() float64 {
-	// Get disk list from lsblk (like Python version)
 	cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print $1}'")
 	output, err := cmd.Output()
 	if err != nil {
@@ -246,7 +233,6 @@ func (c *Controller) calculateDutyCycle(temp float64, key byte) float64 {
 		return c.linearInterpolate(temp, lv0, lv1, lv2, lv3, maxTemp)
 	}
 
-	// Non-linear (step-based)
 	if temp < lv0 {
 		return 0
 	} else if temp < lv1 {
@@ -269,7 +255,6 @@ func (c *Controller) linearInterpolate(temp, lv0, lv1, lv2, lv3, maxTemp float64
 
 	for i := 0; i < len(levels)-1; i++ {
 		if temp >= levels[i] && temp < levels[i+1] {
-			// Linear interpolation between two points
 			ratio := (temp - levels[i]) / (levels[i+1] - levels[i])
 			return dutyCycles[i] + ratio*(dutyCycles[i+1]-dutyCycles[i])
 		}
@@ -286,7 +271,6 @@ func (c *Controller) GetFanSpeeds() (cpuPercent, diskPercent float64) {
 }
 
 func (c *Controller) Close() error {
-	// Set fans to 0 before closing
 	if c.cpuPWM != nil {
 		c.cpuPWM.SetDutyCycle(0)
 		c.cpuPWM.Close()

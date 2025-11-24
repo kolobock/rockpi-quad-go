@@ -71,11 +71,9 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 		return items
 	}
 
-	// First line: "Usage:" label and root partition (two columns)
 	items = append(items, TextItem{X: 0, Y: -2, Text: "Usage:", FontSize: 11})
 	items = append(items, TextItem{X: 64, Y: -2, Text: usage[0], FontSize: 11})
 
-	// Second line: sda and sdb (two columns)
 	if len(usage) > 1 {
 		items = append(items, TextItem{X: 0, Y: 10, Text: usage[1], FontSize: 11})
 	}
@@ -83,7 +81,6 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 		items = append(items, TextItem{X: 64, Y: 10, Text: usage[2], FontSize: 11})
 	}
 
-	// Third line: sdc and sdd (two columns)
 	if len(usage) > 3 {
 		items = append(items, TextItem{X: 0, Y: 21, Text: usage[3], FontSize: 11})
 	}
@@ -133,7 +130,6 @@ func (p *DiskTempPage) GetPageText() []TextItem {
 	temps := p.ctrl.getDiskTemperatures()
 	items := []TextItem{{X: 0, Y: -2, Text: "Disk Temps:", FontSize: 11}}
 
-	// Second line: first two temps (two columns)
 	if len(temps) > 0 {
 		items = append(items, TextItem{X: 0, Y: 10, Text: temps[0], FontSize: 11})
 	}
@@ -141,7 +137,6 @@ func (p *DiskTempPage) GetPageText() []TextItem {
 		items = append(items, TextItem{X: 64, Y: 10, Text: temps[1], FontSize: 11})
 	}
 
-	// Third line: next two temps (two columns)
 	if len(temps) > 2 {
 		items = append(items, TextItem{X: 0, Y: 21, Text: temps[2], FontSize: 11})
 	}
@@ -234,7 +229,6 @@ func stripDeviceName(device string) string {
 func (c *Controller) getDiskUsage() []string {
 	var usage []string
 
-	// Add root partition - show as "/" instead of device name
 	out, err := exec.Command("sh", "-c", "df -h / | awk 'NR==2{print $5}'").Output()
 	if err == nil {
 		percentage := strings.TrimSpace(string(out))
@@ -243,7 +237,6 @@ func (c *Controller) getDiskUsage() []string {
 		}
 	}
 
-	// Collect all disk usages into a map for sorting
 	diskMap := make(map[string]string)
 	for _, mnt := range c.cfg.Disk.SpaceUsageMountPoints {
 		cmd := fmt.Sprintf("df -h %s | awk 'NR==2{print $1, $5}'", mnt)
@@ -257,13 +250,11 @@ func (c *Controller) getDiskUsage() []string {
 		}
 	}
 
-	// Sort disk names alphabetically (sda, sdb, sdc, sdd)
 	var diskNames []string
 	for name := range diskMap {
 		diskNames = append(diskNames, name)
 	}
 
-	// Simple sort for disk names
 	for i := 0; i < len(diskNames); i++ {
 		for j := i + 1; j < len(diskNames); j++ {
 			if diskNames[i] > diskNames[j] {
@@ -272,7 +263,6 @@ func (c *Controller) getDiskUsage() []string {
 		}
 	}
 
-	// Add sorted disk usages
 	for _, name := range diskNames {
 		usage = append(usage, diskMap[name])
 	}
@@ -281,11 +271,9 @@ func (c *Controller) getDiskUsage() []string {
 }
 
 func (c *Controller) getNetworkInterfaces() []string {
-	// Use configured interfaces if available
 	if len(c.cfg.Network.Interfaces) > 0 {
 		var interfaces []string
 		for _, iface := range c.cfg.Network.Interfaces {
-			// Verify interface exists
 			if _, err := os.Stat("/sys/class/net/" + iface); err == nil {
 				interfaces = append(interfaces, iface)
 			}
@@ -293,7 +281,6 @@ func (c *Controller) getNetworkInterfaces() []string {
 		return interfaces
 	}
 
-	// Default to eth0 and wlan0 if they exist
 	var interfaces []string
 	for _, iface := range []string{"eth0", "wlan0", "enp0s3"} {
 		if _, err := os.Stat("/sys/class/net/" + iface); err == nil {
@@ -357,7 +344,6 @@ func (c *Controller) getDiskNameFromMount(mount string) string {
 		return ""
 	}
 	device := strings.TrimSpace(string(out))
-	// Extract disk name (e.g., /dev/sda1 -> sda)
 	if strings.HasPrefix(device, "/dev/") {
 		device = strings.TrimPrefix(device, "/dev/")
 		// Remove partition number
@@ -434,11 +420,9 @@ func (c *Controller) getDiskRate(diskName string) (float64, float64) {
 }
 
 func (c *Controller) initTempDisks() {
-	// Auto-detect disks if TempDisks is empty or contains invalid entries
 	if len(c.cfg.Disk.TempDisks) > 0 && c.cfg.Disk.TempDisks[0] != "true" && strings.HasPrefix(c.cfg.Disk.TempDisks[0], "/dev/") {
 		c.tempDiskDevs = c.cfg.Disk.TempDisks
 	} else {
-		// Auto-detect /dev/sd* disks
 		cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print \"/dev/\"$1}'")
 		output, err := cmd.Output()
 		if err == nil {
@@ -461,7 +445,6 @@ func (c *Controller) getDiskTemperatures() []string {
 		if err == nil && temp > 0 {
 			temps = append(temps, fmt.Sprintf("%s %.0f°C", diskName, temp))
 		} else {
-			// Show disk even if temp reading failed
 			temps = append(temps, fmt.Sprintf("%s --°C", diskName))
 		}
 	}
@@ -472,22 +455,18 @@ func (c *Controller) getDiskTemperatures() []string {
 func (c *Controller) generatePages() []Page {
 	var pages []Page
 
-	// System info pages
 	pages = append(pages, &SystemInfoPage0{ctrl: c})
 	pages = append(pages, &SystemInfoPage1{ctrl: c})
 
-	// Disk usage page
 	if len(c.cfg.Disk.SpaceUsageMountPoints) > 0 {
 		pages = append(pages, &DiskUsagePage{ctrl: c})
 	}
 
-	// Network I/O pages
 	interfaces := c.getNetworkInterfaces()
 	for _, iface := range interfaces {
 		pages = append(pages, &NetworkIOPage{ctrl: c, iface: iface})
 	}
 
-	// Disk I/O pages
 	for _, mnt := range c.cfg.Disk.IOUsageMountPoints {
 		diskName := c.getDiskNameFromMount(mnt)
 		if diskName != "" {
@@ -495,7 +474,6 @@ func (c *Controller) generatePages() []Page {
 		}
 	}
 
-	// Disk temperature page
 	if len(c.cfg.Disk.TempDisks) > 0 {
 		pages = append(pages, &DiskTempPage{ctrl: c})
 	}
