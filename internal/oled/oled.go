@@ -28,19 +28,20 @@ type FanController interface {
 }
 
 type Controller struct {
-	cfg         *config.Config
-	dev         *SSD1306
-	img         *image.Gray
-	mu          sync.Mutex
-	pageIndex   int
-	pages       []Page
-	lastIOTime  time.Time
-	lastNetTime time.Time
-	netStats    map[string]netIOStats
-	diskStats   map[string]diskIOStats
-	syslogger   *syslog.Writer
-	fonts       map[int]font.Face
-	fanCtrl     FanController
+	cfg          *config.Config
+	dev          *SSD1306
+	img          *image.Gray
+	mu           sync.Mutex
+	pageIndex    int
+	pages        []Page
+	lastIOTime   time.Time
+	lastNetTime  time.Time
+	netStats     map[string]netIOStats
+	diskStats    map[string]diskIOStats
+	syslogger    *syslog.Writer
+	fonts        map[int]font.Face
+	fanCtrl      FanController
+	tempDiskDevs []string // Cached list of disks for temperature monitoring
 }
 
 type netIOStats struct {
@@ -109,6 +110,7 @@ func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 	// Initialize network and disk stats
 	c.updateNetworkStats()
 	c.updateDiskStats()
+	c.initTempDisks()
 
 	// Show welcome message
 	c.showWelcome()

@@ -411,13 +411,10 @@ func (c *Controller) getDiskRate(diskName string) (float64, float64) {
 	return readRate, writeRate
 }
 
-func (c *Controller) getDiskTemperatures() []string {
-	var temps []string
-
+func (c *Controller) initTempDisks() {
 	// Auto-detect disks if TempDisks is empty or contains invalid entries
-	var diskDevs []string
 	if len(c.cfg.Disk.TempDisks) > 0 && c.cfg.Disk.TempDisks[0] != "true" && strings.HasPrefix(c.cfg.Disk.TempDisks[0], "/dev/") {
-		diskDevs = c.cfg.Disk.TempDisks
+		c.tempDiskDevs = c.cfg.Disk.TempDisks
 	} else {
 		// Auto-detect /dev/sd* disks
 		cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print \"/dev/\"$1}'")
@@ -426,13 +423,17 @@ func (c *Controller) getDiskTemperatures() []string {
 			diskList := strings.Split(strings.TrimSpace(string(output)), "\n")
 			for _, d := range diskList {
 				if d != "" {
-					diskDevs = append(diskDevs, d)
+					c.tempDiskDevs = append(c.tempDiskDevs, d)
 				}
 			}
 		}
 	}
+}
 
-	for _, diskDev := range diskDevs {
+func (c *Controller) getDiskTemperatures() []string {
+	var temps []string
+
+	for _, diskDev := range c.tempDiskDevs {
 		temp, err := disk.GetTemperature(diskDev)
 		diskName := strings.TrimPrefix(diskDev, "/dev/")
 		if err == nil && temp > 0 {
