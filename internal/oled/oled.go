@@ -6,12 +6,13 @@ import (
 	"image"
 	"image/color"
 	"log/syslog"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/golang/freetype/truetype"
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -48,6 +49,24 @@ type diskIOStats struct {
 	timestamp  time.Time
 }
 
+func loadFont(path string, size float64) (font.Face, error) {
+	fontBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := truetype.Parse(fontBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return truetype.NewFace(f, &truetype.Options{
+		Size:    size,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	}), nil
+}
+
 func New(cfg *config.Config) (*Controller, error) {
 	// Create SSD1306 display driver
 	display, err := NewSSD1306(displayWidth, displayHeight)
@@ -55,14 +74,19 @@ func New(cfg *config.Config) (*Controller, error) {
 		return nil, fmt.Errorf("failed to create SSD1306 display: %w", err)
 	}
 
-	// Use basicfont for consistent small display rendering
+	// Load TTF font
+	fontFace, err := loadFont("fonts/DejaVuSansMono-Bold.ttf", 10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load font: %w", err)
+	}
+
 	c := &Controller{
 		cfg:       cfg,
 		dev:       display,
 		img:       image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
 		netStats:  make(map[string]netIOStats),
 		diskStats: make(map[string]diskIOStats),
-		font:      basicfont.Face7x13,
+		font:      fontFace,
 	}
 
 	// Initialize syslog
@@ -136,10 +160,12 @@ func (c *Controller) clearImage() {
 func (c *Controller) drawText(x, y int, text string) {
 	// Python PIL draws from top-left corner at (x, y)
 	// Go font.Drawer uses baseline, so we need to add the ascent
-	// basicfont.Face7x13 has Ascent of 11 pixels from baseline
+	metrics := c.font.Metrics()
+	ascent := metrics.Ascent.Ceil()
+
 	point := fixed.Point26_6{
 		X: fixed.I(x),
-		Y: fixed.I(y) + fixed.I(11), // Add ascent to convert top to baseline
+		Y: fixed.I(y) + fixed.I(ascent),
 	}
 
 	d := &font.Drawer{
