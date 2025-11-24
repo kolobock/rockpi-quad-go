@@ -25,6 +25,8 @@ A Go reimplementation of the RockPi SATA HAT fan and OLED controller.
 # Build the binary
 cd rockpi-quad-go
 GOOS=linux GOARCH=arm64 go build -o rockpi-quad-go ./cmd/rockpi-quad
+# or 
+make build-arm64
 
 # Install on Rock Pi 4
 sudo mkdir -p /usr/bin/rockpi-quad
@@ -61,6 +63,8 @@ Or simply:
 ```bash
 go mod download
 ```
+
+Or `make deps`
 
 ## Configuration
 
