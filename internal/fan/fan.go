@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"log/syslog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -22,10 +21,9 @@ const (
 )
 
 type Controller struct {
-	cfg       *config.Config
-	cpuPWM    *pwm.PWM
-	diskPWM   *pwm.PWM
-	syslogger *syslog.Writer
+	cfg     *config.Config
+	cpuPWM  *pwm.PWM
+	diskPWM *pwm.PWM
 
 	lastCPUDC    float64
 	lastDiskDC   float64
@@ -64,13 +62,6 @@ func New(cfg *config.Config) (*Controller, error) {
 		}
 	}
 
-	if cfg.Fan.Syslog {
-		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
-		if err == nil {
-			ctrl.syslogger = logger
-		}
-	}
-
 	return ctrl, nil
 }
 
@@ -82,18 +73,14 @@ func (c *Controller) ToggleFan() {
 	c.enabled = !c.enabled
 
 	if c.enabled {
-		if c.syslogger != nil {
-			c.syslogger.Info("Fan control enabled - temperature-based control resumed")
-		}
+		log.Println("Fan control enabled - temperature-based control resumed")
 	} else {
 		fullSpeed := 100.0
 		if c.cfg.Fan.Polarity == "inversed" {
 			fullSpeed = 0.0
 		}
 
-		if c.syslogger != nil {
-			c.syslogger.Info(fmt.Sprintf("Fan control disabled - setting fans to full speed (DC: %.0f%%)", fullSpeed))
-		}
+		log.Printf("Fan control disabled - setting fans to full speed (DC: %.0f%%)", fullSpeed)
 		if c.cpuPWM != nil {
 			c.cpuPWM.SetDutyCycle(fullSpeed)
 			c.lastCPUDC = fullSpeed
@@ -157,10 +144,8 @@ func (c *Controller) update() error {
 		}
 	}
 
-	if c.syslogger != nil {
-		c.syslogger.Info(fmt.Sprintf("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f",
-			cpuTemp, cpuDC*100, diskTemp, diskDC*100))
-	}
+	log.Printf("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f, run: %b",
+		cpuTemp, cpuDC*100, diskTemp, diskDC*100, c.enabled)
 
 	return nil
 }
@@ -272,9 +257,6 @@ func (c *Controller) Close() error {
 	if c.diskPWM != nil {
 		c.diskPWM.SetDutyCycle(0)
 		c.diskPWM.Close()
-	}
-	if c.syslogger != nil {
-		c.syslogger.Close()
 	}
 	return nil
 }

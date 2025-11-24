@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"log/syslog"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -38,7 +38,6 @@ type Controller struct {
 	lastNetTime  time.Time
 	netStats     map[string]netIOStats
 	diskStats    map[string]diskIOStats
-	syslogger    *syslog.Writer
 	fonts        map[int]font.Face
 	fanCtrl      FanController
 	tempDiskDevs []string
@@ -99,13 +98,6 @@ func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 		fanCtrl:   fanCtrl,
 	}
 
-	if cfg.Fan.Syslog {
-		logger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
-		if err == nil {
-			c.syslogger = logger
-		}
-	}
-
 	c.updateNetworkStats()
 	c.updateDiskStats()
 	c.initTempDisks()
@@ -120,9 +112,7 @@ func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error 
 
 	c.pages = c.generatePages()
 	if len(c.pages) == 0 {
-		if c.syslogger != nil {
-			c.syslogger.Info("No OLED pages configured, display disabled")
-		}
+		log.Println("No OLED pages configured, display disabled")
 		<-ctx.Done()
 		return nil
 	}
@@ -150,9 +140,6 @@ func (c *Controller) Close() error {
 	c.clearImage()
 	c.displayToDevice()
 
-	if c.syslogger != nil {
-		c.syslogger.Close()
-	}
 	return c.dev.Close()
 }
 

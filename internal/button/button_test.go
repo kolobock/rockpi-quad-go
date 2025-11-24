@@ -37,9 +37,6 @@ func TestControllerCreation(t *testing.T) {
 			Twice: 0.7,
 			Press: 1.8,
 		},
-		Fan: config.FanConfig{
-			Syslog: false,
-		},
 	}
 
 	ctrl, err := New(cfg)
@@ -55,31 +52,6 @@ func TestControllerCreation(t *testing.T) {
 	}
 	if ctrl.pressTime != time.Duration(1.8*float64(time.Second)) {
 		t.Errorf("pressTime = %v, want %v", ctrl.pressTime, time.Duration(1.8*float64(time.Second)))
-	}
-}
-
-func TestControllerCreationWithSyslog(t *testing.T) {
-	cfg := &config.Config{
-		Env: config.EnvConfig{
-			ButtonChip: "",
-			ButtonLine: "",
-		},
-		Time: config.TimeConfig{
-			Twice: 0.7,
-			Press: 1.8,
-		},
-		Fan: config.FanConfig{
-			Syslog: true,
-		},
-	}
-
-	ctrl, err := New(cfg)
-	if err != nil {
-		t.Fatalf("New failed: %v", err)
-	}
-
-	if ctrl.syslogger == nil {
-		t.Error("syslogger should not be nil when Syslog is enabled")
 	}
 }
 

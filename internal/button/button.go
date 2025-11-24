@@ -3,7 +3,7 @@ package button
 import (
 	"context"
 	"fmt"
-	"log/syslog"
+	"log"
 	"strings"
 	"time"
 
@@ -25,7 +25,6 @@ type Controller struct {
 	cfg         *config.Config
 	line        *gpiocdev.Line
 	pressChan   chan EventType
-	syslogger   *syslog.Writer
 	twiceWindow time.Duration
 	pressTime   time.Duration
 	eventChan   chan gpiocdev.LineEvent
@@ -45,18 +44,8 @@ func New(cfg *config.Config) (*Controller, error) {
 		pressTime:   time.Duration(pressTime * float64(time.Second)),
 	}
 
-	if cfg.Fan.Syslog {
-		syslogger, err := syslog.New(syslog.LOG_INFO, "rockpi-quad-go")
-		if err != nil {
-			return nil, err
-		}
-		ctrl.syslogger = syslogger
-	}
-
 	if line == "" {
-		if ctrl.syslogger != nil {
-			ctrl.syslogger.Info("Button monitoring disabled - no pin configured")
-		}
+		log.Println("Button monitoring disabled - no pin configured")
 		return ctrl, nil
 	}
 
@@ -75,9 +64,7 @@ func New(cfg *config.Config) (*Controller, error) {
 
 	lineNum := 0
 	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
-		if ctrl.syslogger != nil {
-			ctrl.syslogger.Warning("Invalid GPIO line number: " + line)
-		}
+		log.Printf("Invalid GPIO line number: %s", line)
 		return ctrl, nil
 	}
 
@@ -96,9 +83,7 @@ func New(cfg *config.Config) (*Controller, error) {
 		gpiocdev.WithBothEdges,
 		gpiocdev.WithEventHandler(eventHandler))
 	if err != nil {
-		if ctrl.syslogger != nil {
-			ctrl.syslogger.Warning("Failed to request button line: " + err.Error())
-		}
+		log.Printf("Failed to request button line: %v", err)
 		return ctrl, nil
 	}
 
@@ -107,9 +92,7 @@ func New(cfg *config.Config) (*Controller, error) {
 	for len(ctrl.eventChan) > 0 {
 		<-ctrl.eventChan
 	}
-	if ctrl.syslogger != nil {
-		ctrl.syslogger.Info("Button monitoring enabled on " + chip + " line " + line)
-	}
+	log.Printf("Button monitoring enabled on %s line %s", chip, line)
 	return ctrl, nil
 }
 
@@ -129,9 +112,7 @@ func (c *Controller) Run(ctx context.Context) {
 			if event != "" {
 				select {
 				case c.pressChan <- event:
-					if c.syslogger != nil {
-						c.syslogger.Info("Button event: " + string(event))
-					}
+					log.Printf("Button event: %s", event)
 				default:
 					// Channel full, skip
 				}
@@ -232,9 +213,6 @@ func (c *Controller) PressChan() <-chan EventType {
 func (c *Controller) Close() error {
 	if c.line != nil {
 		c.line.Close()
-	}
-	if c.syslogger != nil {
-		return c.syslogger.Close()
 	}
 	return nil
 }
