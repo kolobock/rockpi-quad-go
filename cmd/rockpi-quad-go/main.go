@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -14,16 +13,17 @@ import (
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/kolobock/rockpi-quad-go/internal/disk"
 	"github.com/kolobock/rockpi-quad-go/internal/fan"
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"github.com/kolobock/rockpi-quad-go/internal/oled"
 )
 
 func main() {
-	log.SetFlags(0)
-
 	cfg, err := config.Load("/etc/rockpi-quad.conf")
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		logger.Fatalf("Failed to load config: %v", err)
 	}
+
+	logger.SetVerbose(cfg.Fan.Syslog)
 
 	disk.EnableSATAController(cfg.Env.SATAChip, cfg.Env.SATALine1, cfg.Env.SATALine2)
 
@@ -37,7 +37,7 @@ func main() {
 
 	fanCtrl, err := fan.New(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create fan controller: %v", err)
+		logger.Fatalf("Failed to create fan controller: %v", err)
 	}
 	defer fanCtrl.Close()
 
@@ -45,13 +45,13 @@ func main() {
 	go func() {
 		defer wg.Done()
 		if err := fanCtrl.Run(ctx); err != nil {
-			log.Printf("Fan controller error: %v", err)
+			logger.Errorf("Fan controller error: %v", err)
 		}
 	}()
 
 	buttonCtrl, err := button.New(cfg)
 	if err != nil {
-		log.Printf("Failed to create button controller: %v", err)
+		logger.Errorf("Failed to create button controller: %v", err)
 	}
 	if buttonCtrl != nil {
 		defer buttonCtrl.Close()
@@ -65,7 +65,7 @@ func main() {
 	if cfg.OLED.Enabled {
 		oledCtrl, err := oled.New(cfg, fanCtrl)
 		if err != nil {
-			log.Printf("Failed to create OLED controller: %v", err)
+			logger.Errorf("Failed to create OLED controller: %v", err)
 		} else {
 			defer oledCtrl.Close()
 			wg.Add(1)
@@ -79,7 +79,7 @@ func main() {
 
 						for event := range buttonCtrl.PressChan() {
 							action := getButtonAction(cfg, event)
-							log.Printf("Button event: %s (action: %s)", event, action)
+							logger.Infof("Button event: %s (action: %s)", event, action)
 
 							switch action {
 							case "slider":
@@ -90,32 +90,32 @@ func main() {
 							case "switch":
 								fanCtrl.ToggleFan()
 							case "poweroff":
-								log.Println("Poweroff requested via button press")
+								logger.Infoln("Poweroff requested via button press")
 								go func() {
 									time.Sleep(1 * time.Second)
 									if err := exec.Command("poweroff").Run(); err != nil {
-										log.Printf("Failed to execute poweroff: %v", err)
+										logger.Errorf("Failed to execute poweroff: %v", err)
 									}
 								}()
 								cancel()
 							case "reboot":
-								log.Println("Reboot requested via button press")
+								logger.Infoln("Reboot requested via button press")
 								go func() {
 									time.Sleep(1 * time.Second)
 									if err := exec.Command("reboot").Run(); err != nil {
-										log.Printf("Failed to execute reboot: %v", err)
+										logger.Errorf("Failed to execute reboot: %v", err)
 									}
 								}()
 								cancel()
 							case "none":
 							default:
-								log.Printf("Executing custom command: %s", action)
+								logger.Infof("Executing custom command: %s", action)
 								go func() {
 									cmd := exec.Command("sh", "-c", action)
 									if err := cmd.Run(); err != nil {
-										log.Printf("Failed to execute command '%s': %v", action, err)
+										logger.Errorf("Failed to execute command '%s': %v", action, err)
 									} else {
-										log.Printf("Command '%s' executed successfully", action)
+										logger.Infof("Command '%s' executed successfully", action)
 									}
 								}()
 							}
@@ -123,14 +123,14 @@ func main() {
 					}()
 				}
 				if err := oledCtrl.Run(ctx, buttonChan); err != nil {
-					log.Printf("OLED controller error: %v", err)
+					logger.Errorf("OLED controller error: %v", err)
 				}
 			}()
 		}
 	}
 
 	<-sigCh
-	log.Println("Shutting down...")
+	logger.Infoln("Shutting down...")
 	cancel()
 
 	done := make(chan struct{})
@@ -141,9 +141,9 @@ func main() {
 
 	select {
 	case <-done:
-		log.Println("Shutdown complete")
+		logger.Infoln("Shutdown complete")
 	case <-time.After(5 * time.Second):
-		log.Println("Shutdown timeout")
+		logger.Infoln("Shutdown timeout")
 	}
 }
 

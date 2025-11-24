@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"log"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/golang/freetype/truetype"
 	"github.com/kolobock/rockpi-quad-go/internal/config"
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
@@ -112,7 +112,7 @@ func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error 
 
 	c.pages = c.generatePages()
 	if len(c.pages) == 0 {
-		log.Println("No OLED pages configured, display disabled")
+		logger.Infoln("No OLED pages configured, display disabled")
 		<-ctx.Done()
 		return nil
 	}

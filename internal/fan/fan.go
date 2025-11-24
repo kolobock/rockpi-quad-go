@@ -3,7 +3,6 @@ package fan
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/kolobock/rockpi-quad-go/internal/disk"
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"github.com/kolobock/rockpi-quad-go/pkg/pwm"
 )
 
@@ -72,14 +72,14 @@ func (c *Controller) ToggleFan() {
 	c.enabled = !c.enabled
 
 	if c.enabled {
-		log.Println("Fan control enabled - temperature-based control resumed")
+		logger.Infoln("Fan control enabled - temperature-based control resumed")
 	} else {
 		fullSpeed := 100.0
 		if c.cfg.Fan.Polarity == "inversed" {
 			fullSpeed = 0.0
 		}
 
-		log.Printf("Fan control disabled - setting fans to full speed (DC: %.0f%%)", fullSpeed)
+		logger.Infof("Fan control disabled - setting fans to full speed (DC: %.0f%%)", fullSpeed)
 		if c.cpuPWM != nil {
 			c.cpuPWM.SetDutyCycle(fullSpeed)
 			c.lastCPUDC = fullSpeed
@@ -101,7 +101,7 @@ func (c *Controller) Run(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			if err := c.update(); err != nil {
-				log.Printf("Fan update error: %v", err)
+				logger.Errorf("Fan update error: %v", err)
 			}
 		}
 	}
@@ -143,7 +143,7 @@ func (c *Controller) update() error {
 		}
 	}
 
-	log.Printf("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f, run: %t",
+	logger.Infof("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f, run: %t",
 		cpuTemp, cpuDC*100, diskTemp, diskDC*100, c.enabled)
 
 	return nil

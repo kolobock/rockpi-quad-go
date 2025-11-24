@@ -2,13 +2,13 @@ package disk
 
 import (
 	"fmt"
-	"log"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"github.com/warthog618/go-gpiocdev"
 )
 
@@ -96,16 +96,16 @@ func GetTemperature(device string) (float64, error) {
 func EnableSATAController(sataChip, sataLine1, sataLine2 string) {
 	disks := GetSATADisks()
 	if len(disks) > 0 {
-		log.Println("SATA disks detected, skipping SATA controller enable")
+		logger.Infoln("SATA disks detected, skipping SATA controller enable")
 		return
 	}
 
 	if sataChip == "" || sataLine1 == "" || sataLine2 == "" {
-		log.Println("SATA controller not configured")
+		logger.Infoln("SATA controller not configured")
 		return
 	}
 
-	log.Println("No SATA disks detected, enabling SATA controller...")
+	logger.Infoln("No SATA disks detected, enabling SATA controller...")
 
 	if sataChip == "" {
 		sataChip = "gpiochip0"
@@ -122,31 +122,31 @@ func EnableSATAController(sataChip, sataLine1, sataLine2 string) {
 
 	line1Num := 0
 	if _, err := fmt.Sscanf(sataLine1, "%d", &line1Num); err != nil {
-		log.Printf("Invalid SATA_LINE_1: %s", sataLine1)
+		logger.Errorf("Invalid SATA_LINE_1: %s", sataLine1)
 		return
 	}
 	line2Num := 0
 	if _, err := fmt.Sscanf(sataLine2, "%d", &line2Num); err != nil {
-		log.Printf("Invalid SATA_LINE_2: %s", sataLine2)
+		logger.Errorf("Invalid SATA_LINE_2: %s", sataLine2)
 		return
 	}
 
 	l1, err := gpiocdev.RequestLine(sataChip, line1Num, gpiocdev.AsOutput(1))
 	if err != nil {
-		log.Printf("Failed to request SATA_LINE_1 (line %d): %v", line1Num, err)
+		logger.Errorf("Failed to request SATA_LINE_1 (line %d): %v", line1Num, err)
 	} else {
 		defer l1.Close()
-		log.Printf("SATA_LINE_1 (line %d) set to HIGH", line1Num)
+		logger.Infof("SATA_LINE_1 (line %d) set to HIGH", line1Num)
 	}
 
 	l2, err := gpiocdev.RequestLine(sataChip, line2Num, gpiocdev.AsOutput(1))
 	if err != nil {
-		log.Printf("Failed to request SATA_LINE_2 (line %d): %v", line2Num, err)
+		logger.Errorf("Failed to request SATA_LINE_2 (line %d): %v", line2Num, err)
 	} else {
 		defer l2.Close()
-		log.Printf("SATA_LINE_2 (line %d) set to HIGH", line2Num)
+		logger.Infof("SATA_LINE_2 (line %d) set to HIGH", line2Num)
 	}
 
 	time.Sleep(2 * time.Second)
-	log.Println("SATA controller enabled")
+	logger.Infoln("SATA controller enabled")
 }

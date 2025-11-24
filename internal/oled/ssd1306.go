@@ -3,10 +3,10 @@ package oled
 import (
 	"fmt"
 	"image"
-	"log"
 
 	i2c "github.com/d2r2/go-i2c"
 	"github.com/d2r2/go-logger"
+	l "github.com/kolobock/rockpi-quad-go/internal/logger"
 )
 
 // SSD1306 command constants
@@ -64,7 +64,7 @@ func NewSSD1306(width, height int) (*SSD1306, error) {
 		height: height,
 		buffer: make([]byte, width*height/8),
 	}
-	log.Printf("[SSD1306] Initialized %dx%d display, buffer size: %d bytes", width, height, len(d.buffer))
+	l.Infof("[SSD1306] Initialized %dx%d display, buffer size: %d bytes", width, height, len(d.buffer))
 
 	if err := d.init(); err != nil {
 		i2cBus.Close()

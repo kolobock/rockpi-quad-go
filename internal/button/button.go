@@ -3,11 +3,11 @@ package button
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/kolobock/rockpi-quad-go/internal/config"
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"github.com/warthog618/go-gpiocdev"
 )
 
@@ -45,7 +45,7 @@ func New(cfg *config.Config) (*Controller, error) {
 	}
 
 	if line == "" {
-		log.Println("Button monitoring disabled - no pin configured")
+		logger.Infoln("Button monitoring disabled - no pin configured")
 		return ctrl, nil
 	}
 
@@ -64,7 +64,7 @@ func New(cfg *config.Config) (*Controller, error) {
 
 	lineNum := 0
 	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
-		log.Printf("Invalid GPIO line number: %s", line)
+		logger.Errorf("Invalid GPIO line number: %s", line)
 		return ctrl, nil
 	}
 
@@ -83,7 +83,7 @@ func New(cfg *config.Config) (*Controller, error) {
 		gpiocdev.WithBothEdges,
 		gpiocdev.WithEventHandler(eventHandler))
 	if err != nil {
-		log.Printf("Failed to request button line: %v", err)
+		logger.Errorf("Failed to request button line: %v", err)
 		return ctrl, nil
 	}
 
@@ -92,7 +92,7 @@ func New(cfg *config.Config) (*Controller, error) {
 	for len(ctrl.eventChan) > 0 {
 		<-ctrl.eventChan
 	}
-	log.Printf("Button monitoring enabled on %s line %s", chip, line)
+	logger.Infof("Button monitoring enabled on %s line %s", chip, line)
 	return ctrl, nil
 }
 
@@ -112,7 +112,7 @@ func (c *Controller) Run(ctx context.Context) {
 			if event != "" {
 				select {
 				case c.pressChan <- event:
-					log.Printf("Button event: %s", event)
+					logger.Infof("Button event: %s", event)
 				default:
 					// Channel full, skip
 				}
