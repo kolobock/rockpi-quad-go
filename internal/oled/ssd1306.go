@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/d2r2/go-i2c"
-	"github.com/d2r2/go-logger"
+	"periph.io/x/conn/v3/i2c"
+	"periph.io/x/conn/v3/i2c/i2creg"
+	"periph.io/x/host/v3"
 )
 
 // SSD1306 command constants
@@ -33,6 +34,7 @@ const (
 	ssd1306ComScanDec         = 0xC8
 	ssd1306SegRemap           = 0xA0
 	ssd1306ChargePump         = 0x8D
+	ssd1306SetIrefSelect      = 0xAD
 	ssd1306ExternalVcc        = 0x01
 	ssd1306SwitchCapVcc       = 0x02
 
@@ -41,53 +43,53 @@ const (
 
 // SSD1306 represents an SSD1306 OLED display driver
 type SSD1306 struct {
-	i2c    *i2c.I2C
+	dev    i2c.Dev
 	width  int
 	height int
+	buffer []byte // Frame buffer with extra byte for I2C control
 }
 
 // NewSSD1306 creates a new SSD1306 driver instance
-// Tries common I2C bus numbers: 7, 1, 0
 func NewSSD1306(width, height int) (*SSD1306, error) {
-	// Disable verbose I2C logging
-	logger.ChangePackageLogLevel("i2c", logger.InfoLevel)
-
-	var i2cDev *i2c.I2C
-	var err error
-
-	// Try common I2C bus numbers for Rock Pi 4
-	for _, bus := range []int{7, 1, 0} {
-		i2cDev, err = i2c.NewI2C(ssd1306I2CAddr, bus)
-		if err == nil {
-			break
-		}
+	// Initialize periph.io
+	if _, err := host.Init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize periph: %w", err)
 	}
+
+	// Open I2C bus
+	bus, err := i2creg.Open("")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open I2C: %w", err)
 	}
 
-	dev := &SSD1306{
-		i2c:    i2cDev,
+	// Create I2C device
+	device := i2c.Dev{Bus: bus, Addr: ssd1306I2CAddr}
+
+	d := &SSD1306{
+		dev:    device,
 		width:  width,
 		height: height,
+		buffer: make([]byte, (width*height/8)+1),
 	}
+	// Set first byte of buffer to data control byte (Co=0, D/C=1)
+	d.buffer[0] = 0x40
+	fmt.Printf("[SSD1306] Initialized %dx%d display, buffer size: %d bytes\n", width, height, len(d.buffer))
 
 	// Initialize the display
-	if err := dev.init(); err != nil {
-		i2cDev.Close()
+	if err := d.init(); err != nil {
 		return nil, fmt.Errorf("failed to initialize SSD1306: %w", err)
 	}
 
-	return dev, nil
+	return d, nil
 }
 
 // init initializes the SSD1306 display with proper configuration
 func (d *SSD1306) init() error {
-	// Initialization sequence for SSD1306
+	// Initialization sequence matching Adafruit CircuitPython library
 	cmds := []byte{
 		ssd1306DisplayOff,
-		// Address setting
-		ssd1306MemoryMode, 0x10, // Page Addressing Mode (like CircuitPython default)
+		// Address setting - Use PAGE addressing mode for d2r2/go-i2c compatibility
+		ssd1306MemoryMode, 0x02, // Page Addressing Mode
 		// Resolution and layout
 		ssd1306SetDisplayClockDiv, 0x80,
 		ssd1306SetMultiplex, byte(d.height - 1),
@@ -104,71 +106,81 @@ func (d *SSD1306) init() error {
 		cmds = append(cmds, ssd1306SetComPins, 0x12)
 	}
 
-	// Timing and driving scheme
+	// Continue with timing and display settings
 	cmds = append(cmds,
-		ssd1306SetPrecharge, 0xF1, // Internal VCC
-		ssd1306SetVcomDetect, 0x30, // 0.83*Vcc
-		// Display
-		ssd1306SetContrast, 0xFF, // Maximum
-		ssd1306DisplayAllOnResume,
-		ssd1306NormalDisplay,
+		ssd1306SetPrecharge, 0xF1,
+		ssd1306SetVcomDetect, 0x40,
+		// Display settings
+		ssd1306SetContrast, 0xFF,
+		ssd1306DisplayAllOnResume,  // 0xA4 - output follows RAM contents
+		ssd1306NormalDisplay,       // 0xA6 - not inverted
+		ssd1306SetIrefSelect, 0x30, // Enable internal IREF during display on
 		// Charge pump
 		ssd1306ChargePump, 0x14, // Enable (internal VCC)
-		ssd1306DisplayOn,
 	)
 
 	for _, cmd := range cmds {
-		if err := d.i2c.WriteRegU8(0x00, cmd); err != nil {
+		if err := d.writeCmd(cmd); err != nil {
 			return err
 		}
 	}
 
-	// Clear display on init
+	// Turn on display
+	if err := d.writeCmd(ssd1306DisplayOn); err != nil {
+		return err
+	}
+
+	// Fill and show to complete initialization
 	return d.Clear()
+}
+
+// writeCmd sends a command byte to the display
+func (d *SSD1306) writeCmd(cmd byte) error {
+	// Commands are sent with control byte 0x00 (Co=0, D/C=0)
+	return d.dev.Tx([]byte{0x00, cmd}, nil)
 }
 
 // Display updates the OLED display with the contents of the image
 func (d *SSD1306) Display(img *image.Gray) error {
 	// Convert image to SSD1306 format (pages of 8 vertical pixels)
-	// CircuitPython uses MVLSB format: bits are shifted left, MSB is top pixel
-	buf := make([]byte, d.width*d.height/8)
-
+	// MVLSB format: bit 0 = top pixel, bit 7 = bottom pixel of each byte
 	for page := 0; page < d.height/8; page++ {
 		for x := 0; x < d.width; x++ {
 			var b byte
-			// Bits are packed with bit 0 = top pixel, bit 7 = bottom pixel
-			// But we shift left, so we build from bit 7 down to bit 0
+			// Pack 8 vertical pixels into one byte
+			// bit 0 = top pixel (y=page*8), bit 7 = bottom pixel (y=page*8+7)
 			for bit := 0; bit < 8; bit++ {
-				b = b << 1
-				y := page*8 + 7 - bit
+				y := page*8 + bit
 				if img.GrayAt(x, y).Y > 128 {
-					b |= 1
+					b |= (1 << bit)
 				}
 			}
-			buf[page*d.width+x] = b
+			d.buffer[1+page*d.width+x] = b
 		}
 	}
 
-	// Write data using Page Addressing Mode (like CircuitPython page_addressing=True)
+	// Use page addressing mode: set page, set column, then write data
+	// For each page, send control byte 0x40 followed by all page data
 	for page := 0; page < d.height/8; page++ {
-		// Set page address (0xB0 + page number)
-		if err := d.i2c.WriteRegU8(0x00, 0xB0|byte(page)); err != nil {
+		// Set page address
+		if err := d.writeCmd(0xB0 | byte(page)); err != nil {
 			return err
 		}
-		// Set column start address (low nibble)
-		if err := d.i2c.WriteRegU8(0x00, byte(d.width%32)); err != nil {
+		// Set column start (lower nibble)
+		if err := d.writeCmd(ssd1306SetLowColumn | 0x00); err != nil {
 			return err
 		}
-		// Set column start address (high nibble)
-		if err := d.i2c.WriteRegU8(0x00, byte(0x10+d.width/32)); err != nil {
+		// Set column start (upper nibble)
+		if err := d.writeCmd(ssd1306SetHighColumn | 0x00); err != nil {
 			return err
 		}
 
-		// Write page data
+		// Write page data: control byte 0x40 + 128 data bytes
 		pageData := make([]byte, d.width+1)
-		pageData[0] = 0x40 // Co=0, D/C=1 (data mode)
-		copy(pageData[1:], buf[page*d.width:(page+1)*d.width])
-		if _, err := d.i2c.WriteBytes(pageData); err != nil {
+		pageData[0] = 0x40 // Data continuation mode
+		copy(pageData[1:], d.buffer[1+page*d.width:1+(page+1)*d.width])
+
+		if err := d.dev.Tx(pageData, nil); err != nil {
 			return err
 		}
 	}
@@ -178,40 +190,52 @@ func (d *SSD1306) Display(img *image.Gray) error {
 
 // Clear clears the display (turns all pixels off)
 func (d *SSD1306) Clear() error {
-	// Set column and page address range
-	d.i2c.WriteRegU8(0x00, ssd1306ColumnAddr)
-	d.i2c.WriteRegU8(0x00, 0)
-	d.i2c.WriteRegU8(0x00, byte(d.width-1))
-	d.i2c.WriteRegU8(0x00, ssd1306PageAddr)
-	d.i2c.WriteRegU8(0x00, 0)
-	d.i2c.WriteRegU8(0x00, byte((d.height/8)-1))
+	// Clear buffer
+	for i := 1; i < len(d.buffer); i++ {
+		d.buffer[i] = 0
+	}
 
-	// Create empty buffer
-	buf := make([]byte, (d.width*d.height/8)+1)
-	buf[0] = 0x40 // Data mode
+	// Write using page addressing
+	zeroPage := make([]byte, d.width+1)
+	zeroPage[0] = 0x40 // Data mode
+	// rest are zeros by default
 
-	_, err := d.i2c.WriteBytes(buf)
-	return err
+	for page := 0; page < d.height/8; page++ {
+		if err := d.writeCmd(0xB0 | byte(page)); err != nil {
+			return err
+		}
+		if err := d.writeCmd(ssd1306SetLowColumn | 0x00); err != nil {
+			return err
+		}
+		if err := d.writeCmd(ssd1306SetHighColumn | 0x00); err != nil {
+			return err
+		}
+		if err := d.dev.Tx(zeroPage, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SetContrast sets the display contrast (0-255)
 func (d *SSD1306) SetContrast(contrast byte) error {
-	if err := d.i2c.WriteRegU8(0x00, ssd1306SetContrast); err != nil {
+	if err := d.writeCmd(ssd1306SetContrast); err != nil {
 		return err
 	}
-	return d.i2c.WriteRegU8(0x00, contrast)
+	return d.writeCmd(contrast)
 }
 
 // SetDisplayOn turns the display on or off
 func (d *SSD1306) SetDisplayOn(on bool) error {
 	if on {
-		return d.i2c.WriteRegU8(0x00, ssd1306DisplayOn)
+		return d.writeCmd(ssd1306DisplayOn)
 	}
-	return d.i2c.WriteRegU8(0x00, ssd1306DisplayOff)
+	return d.writeCmd(ssd1306DisplayOff)
 }
 
 // Close closes the I2C connection and turns off the display
 func (d *SSD1306) Close() error {
 	d.SetDisplayOn(false)
-	return d.i2c.Close()
+	// periph.io doesn't require explicit close
+	return nil
 }

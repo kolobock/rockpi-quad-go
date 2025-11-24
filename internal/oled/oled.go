@@ -161,7 +161,7 @@ func (c *Controller) drawText(x, y int, text string) {
 
 	d := &font.Drawer{
 		Dst:  c.img,
-		Src:  image.White,
+		Src:  image.NewUniform(color.White),
 		Face: c.font,
 		Dot:  point,
 	}
@@ -171,12 +171,7 @@ func (c *Controller) drawText(x, y int, text string) {
 func (c *Controller) display() error {
 	if c.cfg.OLED.Rotate {
 		rotated := c.rotateImage180(c.img)
-		// Copy rotated image back to c.img
-		for y := 0; y < displayHeight; y++ {
-			for x := 0; x < displayWidth; x++ {
-				c.img.Set(x, y, rotated.At(x, y))
-			}
-		}
+		return c.dev.Display(rotated)
 	}
 	return c.displayToDevice()
 }
