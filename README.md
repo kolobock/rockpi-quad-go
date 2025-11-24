@@ -11,9 +11,13 @@ A Go reimplementation of the RockPi SATA HAT fan and OLED controller.
 - ✅ Syslog support
 - ✅ Inversed polarity support
 - ✅ Minimum duty cycle threshold (7%)
-- ✅ OLED display with page cycling
+- ✅ SSD1306 OLED display (128x32) with multi-font support
+- ✅ Multiple display pages (system info, fan speed, disk usage, network I/O, disk I/O, disk temps)
+- ✅ Configurable page cycling (10-second intervals)
+- ✅ 180° display rotation support
+- ✅ Button input handling (click/double-click/long-press)
+- ✅ Configurable button actions (slider, switch, poweroff, reboot, custom commands)
 - ✅ Environment file loading (/etc/rockpi-quad.env)
-- 🚧 Key input handling (TODO)
 
 ## Installation
 
@@ -46,7 +50,9 @@ No changes to existing config files are needed.
 
 ```bash
 go get github.com/d2r2/go-i2c
+go get github.com/d2r2/go-logger
 go get github.com/warthog618/go-gpiocdev
+go get github.com/golang/freetype
 go get gopkg.in/ini.v1
 go get golang.org/x/image
 ```
@@ -63,9 +69,11 @@ The application uses two configuration files:
 ### `/etc/rockpi-quad.conf`
 Main configuration file (same format as Python version) containing:
 - Fan temperature thresholds and PWM levels
-- OLED display settings (rotation, temperature unit)
-- Disk monitoring configuration
-- Key/button behavior settings
+- OLED display settings (rotation, temperature unit, enabled/disabled)
+- Disk monitoring configuration (mount points for usage/I/O, temperature disks)
+- Network interface configuration
+- Key/button behavior settings (click, double-click, long-press actions)
+- Timing settings for button detection
 
 ### `/etc/rockpi-quad.env`
 Environment configuration file (same as Python version) containing hardware-specific settings:
@@ -74,6 +82,49 @@ Environment configuration file (same as Python version) containing hardware-spec
 - Fan control GPIO settings
 - SATA LED indicators
 - PWM configuration
+
+**Note:** Both files are shared with the Python version - no changes needed to switch between implementations.
+
+## OLED Display Pages
+
+The OLED displays the following information pages in rotation:
+
+1. **System Info Page 0**: Uptime, CPU temperature, IP address
+2. **System Info Page 1**: Fan speeds (CPU & Disk), CPU load, Memory usage
+3. **Disk Usage**: Root partition and data disk usage percentages (sorted: sda, sdb, sdc, sdd)
+4. **Network I/O**: RX/TX rates for configured network interfaces
+5. **Disk I/O**: Read/Write rates for configured disks
+6. **Disk Temperatures**: Temperature readings for SATA disks
+
+Display features:
+- **Multi-font support**: Uses DejaVu Sans Mono Bold TTF in sizes 10, 11, 12, and 14
+- **Proper Unicode**: Supports degree symbol (°) and other special characters
+- **Two-column layout**: Efficient use of 128x32 pixel display
+- **Auto-detection**: Automatically detects SATA disks for temperature monitoring
+- **Configurable**: Can be enabled/disabled, rotated 180°, and switch between Celsius/Fahrenheit
+
+## Button Actions
+
+The button supports three types of presses with configurable actions:
+
+- **Single Click** (`click`): Default action is `slider` (advance to next OLED page)
+- **Double Click** (`twice`): Default action is `switch` (toggle fan on/off)
+- **Long Press** (`press`): Default action is `poweroff` (system shutdown)
+
+Configurable actions in `/etc/rockpi-quad.conf`:
+```ini
+[key]
+click = slider      # Options: slider, switch, poweroff, reboot, none, or custom shell command
+twice = switch
+press = poweroff
+```
+
+Timing configuration:
+```ini
+[time]
+twice = 0.7         # Double-click detection window (seconds)
+press = 1.8         # Long-press threshold (seconds)
+```
 
 **Note:** Both files are shared with the Python version - no changes needed to switch between implementations.
 
@@ -133,20 +184,26 @@ go test ./...
 ```
 rockpi-quad-go/
 ├── cmd/
-│   └── rockpi-quad/          # Main application entry point
+│   └── rockpi-quad-go/       # Main application entry point
 │       └── main.go
 ├── internal/
 │   ├── config/               # Configuration loading
 │   │   └── config.go
 │   ├── fan/                  # Fan control logic
 │   │   └── fan.go
-│   ├── oled/                 # OLED display (TODO)
-│   │   └── oled.go
+│   ├── button/               # Button input handling
+│   │   └── button.go
+│   ├── oled/                 # OLED display controller
+│   │   ├── oled.go           # Display controller
+│   │   ├── pages.go          # Page definitions and data
+│   │   └── ssd1306.go        # SSD1306 I2C driver
 │   └── disk/                 # Disk temperature monitoring
 │       └── disk.go
-└── pkg/
-    └── pwm/                  # PWM hardware interface
-        └── pwm.go
+├── pkg/
+│   └── pwm/                  # PWM hardware interface
+│       └── pwm.go
+└── fonts/
+    └── DejaVuSansMono-Bold.ttf  # TrueType font for OLED
 ```
 
 ## License

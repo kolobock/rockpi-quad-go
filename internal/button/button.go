@@ -108,6 +108,11 @@ func New(chip, line string, twiceWindow, pressTime float64) (*Controller, error)
 	}
 
 	ctrl.line = l
+	// Drain any initial events from startup noise
+	time.Sleep(100 * time.Millisecond)
+	for len(ctrl.eventChan) > 0 {
+		<-ctrl.eventChan
+	}
 	syslogger.Info("Button monitoring enabled on " + chip + " line " + line)
 	return ctrl, nil
 }
@@ -141,21 +146,24 @@ func (c *Controller) Run(ctx context.Context) {
 // detectButtonEvent waits for and detects the type of button press
 func (c *Controller) detectButtonEvent(ctx context.Context) EventType {
 	// Wait for button press (falling edge)
-	select {
-	case <-ctx.Done():
-		return ""
-	case evt := <-c.eventChan:
-		// Check if it's a falling edge (button pressed)
-		if evt.Type != gpiocdev.LineEventFallingEdge {
+	var pressStart time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return ""
+		case evt := <-c.eventChan:
+			// Check if it's a falling edge (button pressed)
+			if evt.Type == gpiocdev.LineEventFallingEdge {
+				pressStart = time.Now()
+				goto waitForRelease
+			}
+			// Ignore rising edges while waiting for press
+		case <-time.After(200 * time.Millisecond):
 			return ""
 		}
-	case <-time.After(200 * time.Millisecond):
-		return ""
 	}
 
-	// Record press start time
-	pressStart := time.Now()
-
+waitForRelease:
 	// Wait for button release (rising edge) or long-press timeout
 	for {
 		select {
