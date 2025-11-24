@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -167,24 +166,13 @@ func (c *Controller) getTemperatures() (cpu, disk float64) {
 }
 
 func (c *Controller) getMaxDiskTemp() float64 {
-	cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print $1}'")
-	output, err := cmd.Output()
-	if err != nil {
-		return 0
-	}
-
-	disks := strings.Split(strings.TrimSpace(string(output)), "\n")
+	disks := disk.GetSATADisks()
 	if len(disks) == 0 {
 		return 0
 	}
 
 	var maxTemp float64
-	for _, diskName := range disks {
-		diskName = strings.TrimSpace(diskName)
-		if diskName == "" {
-			continue
-		}
-		diskDev := "/dev/" + diskName
+	for _, diskDev := range disks {
 		temp, err := disk.GetTemperature(diskDev)
 		if err != nil {
 			continue

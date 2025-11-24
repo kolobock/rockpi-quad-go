@@ -6,10 +6,52 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/warthog618/go-gpiocdev"
 )
+
+var (
+	diskListCache   []string
+	lastCheckTime   time.Time
+	checkMutex      sync.Mutex
+	recheckInterval = 30 * time.Second
+)
+
+// GetSATADisks returns a list of SATA disk devices (/dev/sdX)
+func GetSATADisks() []string {
+	if len(diskListCache) > 0 {
+		return diskListCache
+	}
+
+	checkMutex.Lock()
+	defer checkMutex.Unlock()
+
+	if len(diskListCache) == 0 || (lastCheckTime.IsZero() && len(diskListCache) == 0) {
+		if lastCheckTime.IsZero() || time.Since(lastCheckTime) >= recheckInterval {
+			diskListCache = fetchDiskList()
+			lastCheckTime = time.Now()
+		}
+	}
+
+	return diskListCache
+}
+
+func fetchDiskList() []string {
+	var disks []string
+	cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print \"/dev/\"$1}'")
+	output, err := cmd.Output()
+	if err == nil {
+		diskList := strings.Split(strings.TrimSpace(string(output)), "\n")
+		for _, d := range diskList {
+			if d != "" {
+				disks = append(disks, d)
+			}
+		}
+	}
+	return disks
+}
 
 // GetTemperature reads disk temperature using smartctl
 func GetTemperature(device string) (float64, error) {
@@ -52,9 +94,8 @@ func GetTemperature(device string) (float64, error) {
 
 // EnableSATAController enables SATA controller GPIO lines if no disks are detected
 func EnableSATAController(sataChip, sataLine1, sataLine2 string) {
-	cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print $1}'")
-	output, err := cmd.Output()
-	if err == nil && len(strings.TrimSpace(string(output))) > 0 {
+	disks := GetSATADisks()
+	if len(disks) > 0 {
 		log.Println("SATA disks detected, skipping SATA controller enable")
 		return
 	}

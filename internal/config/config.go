@@ -60,7 +60,7 @@ type OLEDConfig struct {
 type DiskConfig struct {
 	SpaceUsageMountPoints []string
 	IOUsageMountPoints    []string
-	TempDisks             []string
+	DisksTemperature      bool
 }
 
 type NetworkConfig struct {
@@ -146,9 +146,7 @@ func Load(path string) (*Config, error) {
 	if ioPoints := diskSec.Key("io_usage_mnt_points").String(); ioPoints != "" {
 		cfg.Disk.IOUsageMountPoints = strings.Split(ioPoints, "|")
 	}
-	if tempDisks := diskSec.Key("disks_temp").String(); tempDisks != "" {
-		cfg.Disk.TempDisks = strings.Split(tempDisks, ",")
-	}
+	cfg.Disk.DisksTemperature = diskSec.Key("disks_temp").MustBool(false)
 
 	netSec := iniFile.Section("network")
 	if interfaces := netSec.Key("interfaces").String(); interfaces != "" {

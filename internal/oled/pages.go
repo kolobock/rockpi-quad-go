@@ -419,20 +419,11 @@ func (c *Controller) getDiskRate(diskName string) (float64, float64) {
 }
 
 func (c *Controller) initTempDisks() {
-	if len(c.cfg.Disk.TempDisks) > 0 && c.cfg.Disk.TempDisks[0] != "true" && strings.HasPrefix(c.cfg.Disk.TempDisks[0], "/dev/") {
-		c.tempDiskDevs = c.cfg.Disk.TempDisks
-	} else {
-		cmd := exec.Command("sh", "-c", "lsblk -d | egrep ^sd | awk '{print \"/dev/\"$1}'")
-		output, err := cmd.Output()
-		if err == nil {
-			diskList := strings.Split(strings.TrimSpace(string(output)), "\n")
-			for _, d := range diskList {
-				if d != "" {
-					c.tempDiskDevs = append(c.tempDiskDevs, d)
-				}
-			}
-		}
+	if !c.cfg.Disk.DisksTemperature {
+		return
 	}
+
+	c.tempDiskDevs = disk.GetSATADisks()
 }
 
 func (c *Controller) getDiskTemperatures() []string {
@@ -473,7 +464,7 @@ func (c *Controller) generatePages() []Page {
 		}
 	}
 
-	if len(c.cfg.Disk.TempDisks) > 0 {
+	if c.cfg.Disk.DisksTemperature {
 		pages = append(pages, &DiskTempPage{ctrl: c})
 	}
 
