@@ -68,7 +68,7 @@ func main() {
 
 	// Start OLED display if enabled
 	if cfg.OLED.Enabled {
-		oledCtrl, err := oled.New(cfg)
+		oledCtrl, err := oled.New(cfg, fanCtrl)
 		if err != nil {
 			log.Printf("Failed to create OLED controller: %v", err)
 		} else {

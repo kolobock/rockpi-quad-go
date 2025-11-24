@@ -278,6 +278,13 @@ func (c *Controller) linearInterpolate(temp, lv0, lv1, lv2, lv3, maxTemp float64
 	return 1.0
 }
 
+// GetFanSpeeds returns the current CPU and disk fan duty cycles as percentages (0-100)
+func (c *Controller) GetFanSpeeds() (cpuPercent, diskPercent float64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastCPUDC * 100, c.lastDiskDC * 100
+}
+
 func (c *Controller) Close() error {
 	// Set fans to 0 before closing
 	if c.cpuPWM != nil {

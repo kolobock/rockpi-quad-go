@@ -43,8 +43,16 @@ type SystemInfoPage1 struct {
 }
 
 func (p *SystemInfoPage1) GetPageText() []TextItem {
+	cpuFan, diskFan := p.ctrl.getFanSpeeds()
+	var fanText string
+	if cpuFan == 0 && diskFan == 0 {
+		fanText = "Fan: off"
+	} else {
+		fanText = fmt.Sprintf("Fan C-%2.0f%%, D-%2.0f%%", cpuFan, diskFan)
+	}
+
 	return []TextItem{
-		{X: 0, Y: -2, Text: "Fan: monitoring", FontSize: 11},
+		{X: 0, Y: -2, Text: fanText, FontSize: 11},
 		{X: 0, Y: 10, Text: p.ctrl.getCPULoad(), FontSize: 11},
 		{X: 0, Y: 21, Text: p.ctrl.getMemoryUsage(), FontSize: 11},
 	}
@@ -138,6 +146,13 @@ func (p *DiskTempPage) GetPageText() []TextItem {
 }
 
 // Utility functions to get system information
+
+func (c *Controller) getFanSpeeds() (cpuPercent, diskPercent float64) {
+	if c.fanCtrl != nil {
+		return c.fanCtrl.GetFanSpeeds()
+	}
+	return 0, 0
+}
 
 func (c *Controller) getUptime() string {
 	out, err := exec.Command("sh", "-c", "uptime | sed 's/.*up \\([^,]*\\),.*/\\1/'").Output()

@@ -22,6 +22,11 @@ const (
 	sliderTime    = 10 * time.Second // default page rotation time
 )
 
+// FanController interface for getting fan speeds
+type FanController interface {
+	GetFanSpeeds() (cpuPercent, diskPercent float64)
+}
+
 type Controller struct {
 	cfg         *config.Config
 	dev         *SSD1306
@@ -35,6 +40,7 @@ type Controller struct {
 	diskStats   map[string]diskIOStats
 	syslogger   *syslog.Writer
 	fonts       map[int]font.Face
+	fanCtrl     FanController
 }
 
 type netIOStats struct {
@@ -67,7 +73,7 @@ func loadFont(path string, size float64) (font.Face, error) {
 	}), nil
 }
 
-func New(cfg *config.Config) (*Controller, error) {
+func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 	// Create SSD1306 display driver
 	display, err := NewSSD1306(displayWidth, displayHeight)
 	if err != nil {
@@ -91,6 +97,7 @@ func New(cfg *config.Config) (*Controller, error) {
 		netStats:  make(map[string]netIOStats),
 		diskStats: make(map[string]diskIOStats),
 		fonts:     fonts,
+		fanCtrl:   fanCtrl,
 	}
 
 	// Initialize syslog
