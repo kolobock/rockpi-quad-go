@@ -19,7 +19,6 @@ import (
 const (
 	displayWidth  = 128
 	displayHeight = 32
-	sliderTime    = 10 * time.Second
 )
 
 // FanController interface for getting fan speeds
@@ -41,6 +40,7 @@ type Controller struct {
 	fonts        map[int]font.Face
 	fanCtrl      FanController
 	tempDiskDevs []string
+	initRun      bool
 }
 
 type netIOStats struct {
@@ -101,15 +101,12 @@ func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 	c.updateNetworkStats()
 	c.updateDiskStats()
 	c.initTempDisks()
-
 	c.showWelcome()
 
 	return c, nil
 }
 
 func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error {
-	c.showWelcome()
-
 	c.pages = c.generatePages()
 	if len(c.pages) == 0 {
 		logger.Infoln("No OLED pages configured, display disabled")
@@ -117,7 +114,10 @@ func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error 
 		return nil
 	}
 
-	ticker := time.NewTicker(sliderTime)
+	c.nextPage()
+	c.initRun = true
+
+	ticker := time.NewTicker(time.Duration(c.cfg.Slider.Time) * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -126,7 +126,9 @@ func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error 
 			c.showGoodbye()
 			return nil
 		case <-ticker.C:
-			c.nextPage()
+			if c.cfg.Slider.Auto {
+				c.nextPage()
+			}
 		case <-buttonChan:
 			c.nextPage()
 		}
@@ -206,7 +208,7 @@ func (c *Controller) showWelcome() {
 	c.drawText(0, 0, "ROCKPi QUAD HAT", 14)
 	c.drawText(32, 16, "Loading...", 12)
 	c.display()
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 }
 
 func (c *Controller) showGoodbye() {
@@ -222,14 +224,16 @@ func (c *Controller) showGoodbye() {
 }
 
 func (c *Controller) nextPage() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if len(c.pages) == 0 {
 		return
 	}
 
-	c.pageIndex = (c.pageIndex + 1) % len(c.pages)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.initRun {
+		c.pageIndex = (c.pageIndex + 1) % len(c.pages)
+	}
 	page := c.pages[c.pageIndex]
 
 	c.clearImage()

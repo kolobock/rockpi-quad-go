@@ -15,6 +15,7 @@ type Config struct {
 	Disk    DiskConfig
 	Network NetworkConfig
 	Key     KeyConfig
+	Slider  SliderConfig
 	Time    TimeConfig
 	Env     EnvConfig
 }
@@ -71,6 +72,11 @@ type KeyConfig struct {
 	Click string
 	Twice string
 	Press string
+}
+
+type SliderConfig struct {
+	Auto bool
+	Time int
 }
 
 type TimeConfig struct {
@@ -161,6 +167,10 @@ func Load(path string) (*Config, error) {
 	timeSec := iniFile.Section("time")
 	cfg.Time.Twice = timeSec.Key("twice").MustFloat64(0.7)
 	cfg.Time.Press = timeSec.Key("press").MustFloat64(1.8)
+
+	sliderSec := iniFile.Section("slider")
+	cfg.Slider.Auto = sliderSec.Key("auto").MustBool(true)
+	cfg.Slider.Time = sliderSec.Key("time").MustInt(5)
 
 	return cfg, nil
 }
