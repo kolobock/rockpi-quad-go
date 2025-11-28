@@ -40,7 +40,9 @@ type Controller struct {
 	fonts        map[int]font.Face
 	fanCtrl      FanController
 	tempDiskDevs []string
-	initRun      bool
+
+	timer         *time.Ticker
+	timerDuration time.Duration
 }
 
 type netIOStats struct {
@@ -89,13 +91,14 @@ func New(cfg *config.Config, fanCtrl FanController) (*Controller, error) {
 	}
 
 	c := &Controller{
-		cfg:       cfg,
-		dev:       display,
-		img:       image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
-		netStats:  make(map[string]netIOStats),
-		diskStats: make(map[string]diskIOStats),
-		fonts:     fonts,
-		fanCtrl:   fanCtrl,
+		cfg:           cfg,
+		dev:           display,
+		img:           image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
+		netStats:      make(map[string]netIOStats),
+		diskStats:     make(map[string]diskIOStats),
+		fonts:         fonts,
+		fanCtrl:       fanCtrl,
+		timerDuration: time.Duration(cfg.Slider.Time) * time.Second,
 	}
 
 	c.updateNetworkStats()
@@ -115,10 +118,11 @@ func (c *Controller) Run(ctx context.Context, buttonChan <-chan struct{}) error 
 	}
 
 	c.nextPage()
-	c.initRun = true
 
-	ticker := time.NewTicker(time.Duration(c.cfg.Slider.Time) * time.Second)
+	ticker := time.NewTicker(c.timerDuration)
 	defer ticker.Stop()
+
+	c.timer = ticker
 
 	for {
 		select {
@@ -143,6 +147,13 @@ func (c *Controller) Close() error {
 	c.displayToDevice()
 
 	return c.dev.Close()
+}
+
+func (c *Controller) NotifyBtnPress() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.timer.Reset(c.timerDuration)
 }
 
 func (c *Controller) clearImage() {
@@ -231,7 +242,7 @@ func (c *Controller) nextPage() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.initRun {
+	if c.timer != nil {
 		c.pageIndex = (c.pageIndex + 1) % len(c.pages)
 	}
 	page := c.pages[c.pageIndex]

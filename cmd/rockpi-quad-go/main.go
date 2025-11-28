@@ -49,86 +49,88 @@ func main() {
 		}
 	}()
 
-	buttonCtrl, err := button.New(cfg)
-	if err != nil {
-		logger.Errorf("Failed to create button controller: %v", err)
-	}
-	if buttonCtrl != nil {
+	if cfg.OLED.Enabled {
+		buttonCtrl, err := button.New(cfg)
+		if err != nil {
+			logger.Errorf("Failed to create button controller: %v", err)
+			goto oled
+		}
 		defer buttonCtrl.Close()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			buttonCtrl.Run(ctx)
 		}()
-	}
 
-	if cfg.OLED.Enabled {
+	oled:
 		oledCtrl, err := oled.New(cfg, fanCtrl)
 		if err != nil {
 			logger.Errorf("Failed to create OLED controller: %v", err)
-		} else {
-			defer oledCtrl.Close()
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				buttonChan := make(chan struct{}, 10)
-
-				if buttonCtrl != nil {
-					go func() {
-						time.Sleep(1500 * time.Millisecond)
-
-						for event := range buttonCtrl.PressChan() {
-							action := getButtonAction(cfg, event)
-							logger.Infof("Button event: %s (action: %s)", event, action)
-
-							switch action {
-							case "slider":
-								select {
-								case buttonChan <- struct{}{}:
-								default:
-								}
-							case "switch":
-								fanCtrl.ToggleFan()
-							case "poweroff":
-								logger.Infoln("Poweroff requested via button press")
-								go func() {
-									time.Sleep(1 * time.Second)
-									if err := exec.Command("poweroff").Run(); err != nil {
-										logger.Errorf("Failed to execute poweroff: %v", err)
-									}
-								}()
-								cancel()
-							case "reboot":
-								logger.Infoln("Reboot requested via button press")
-								go func() {
-									time.Sleep(1 * time.Second)
-									if err := exec.Command("reboot").Run(); err != nil {
-										logger.Errorf("Failed to execute reboot: %v", err)
-									}
-								}()
-								cancel()
-							case "none":
-							default:
-								logger.Infof("Executing custom command: %s", action)
-								go func() {
-									cmd := exec.Command("sh", "-c", action)
-									if err := cmd.Run(); err != nil {
-										logger.Errorf("Failed to execute command '%s': %v", action, err)
-									} else {
-										logger.Infof("Command '%s' executed successfully", action)
-									}
-								}()
-							}
-						}
-					}()
-				}
-				if err := oledCtrl.Run(ctx, buttonChan); err != nil {
-					logger.Errorf("OLED controller error: %v", err)
-				}
-			}()
+			goto sigChannel
 		}
+		defer oledCtrl.Close()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			buttonChan := make(chan struct{}, 10)
+
+			if buttonCtrl != nil {
+				go func() {
+					time.Sleep(500 * time.Millisecond)
+
+					for event := range buttonCtrl.PressChan() {
+						action := getButtonAction(cfg, event)
+						logger.Infof("Button event: %s (action: %s)", event, action)
+						oledCtrl.NotifyBtnPress()
+
+						switch action {
+						case "slider":
+							select {
+							case buttonChan <- struct{}{}:
+							default:
+							}
+						case "switch":
+							fanCtrl.ToggleFan()
+						case "poweroff":
+							logger.Infoln("Poweroff requested via button press")
+							go func() {
+								time.Sleep(1 * time.Second)
+								if err := exec.Command("poweroff").Run(); err != nil {
+									logger.Errorf("Failed to execute poweroff: %v", err)
+								}
+							}()
+							cancel()
+						case "reboot":
+							logger.Infoln("Reboot requested via button press")
+							go func() {
+								time.Sleep(1 * time.Second)
+								if err := exec.Command("reboot").Run(); err != nil {
+									logger.Errorf("Failed to execute reboot: %v", err)
+								}
+							}()
+							cancel()
+						case "none":
+						default:
+							logger.Infof("Executing custom command: %s", action)
+							go func() {
+								cmd := exec.Command("sh", "-c", action)
+								if err := cmd.Run(); err != nil {
+									logger.Errorf("Failed to execute command '%s': %v", action, err)
+								} else {
+									logger.Infof("Command '%s' executed successfully", action)
+								}
+							}()
+						}
+					}
+				}()
+			}
+			if err := oledCtrl.Run(ctx, buttonChan); err != nil {
+				logger.Errorf("OLED controller error: %v", err)
+			}
+		}()
 	}
 
+sigChannel:
 	<-sigCh
 	logger.Infoln("Shutting down...")
 	cancel()

@@ -37,16 +37,9 @@ func New(cfg *config.Config) (*Controller, error) {
 	twiceWindow := cfg.Time.Twice
 	pressTime := cfg.Time.Press
 
-	ctrl := &Controller{
-		cfg:         cfg,
-		pressChan:   make(chan EventType, 10),
-		twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
-		pressTime:   time.Duration(pressTime * float64(time.Second)),
-	}
-
 	if line == "" {
 		logger.Infoln("Button monitoring disabled - no pin configured")
-		return ctrl, nil
+		return nil, fmt.Errorf("Button monitoring disabled - no pin configured")
 	}
 
 	if chip == "" {
@@ -65,7 +58,14 @@ func New(cfg *config.Config) (*Controller, error) {
 	lineNum := 0
 	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
 		logger.Errorf("Invalid GPIO line number: %s", line)
-		return ctrl, nil
+		return nil, fmt.Errorf("Invalid GPIO line number: %s", line)
+	}
+
+	ctrl := &Controller{
+		cfg:         cfg,
+		pressChan:   make(chan EventType, 10),
+		twiceWindow: time.Duration(twiceWindow * float64(time.Second)),
+		pressTime:   time.Duration(pressTime * float64(time.Second)),
 	}
 
 	ctrl.eventChan = make(chan gpiocdev.LineEvent, 10)
@@ -84,7 +84,7 @@ func New(cfg *config.Config) (*Controller, error) {
 		gpiocdev.WithEventHandler(eventHandler))
 	if err != nil {
 		logger.Errorf("Failed to request button line: %v", err)
-		return ctrl, nil
+		return nil, fmt.Errorf("Failed to request button line: %v", err)
 	}
 
 	ctrl.line = l
