@@ -3,10 +3,15 @@ package oled
 import (
 	"fmt"
 	"image"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	i2c "github.com/d2r2/go-i2c"
 	i2cl "github.com/d2r2/go-logger"
 	"github.com/kolobock/rockpi-quad-go/internal/logger"
+	"github.com/warthog618/go-gpiocdev"
 )
 
 // SSD1306 command constants
@@ -34,7 +39,7 @@ const (
 	ssd1306ComScanDec         = 0xC8
 	ssd1306SegRemap           = 0xA0
 	ssd1306ChargePump         = 0x8D
-	ssd1306SetIrefSelect      = 0xAD
+	ssd1306DeactivateScroll   = 0x2E
 	ssd1306ExternalVcc        = 0x01
 	ssd1306SwitchCapVcc       = 0x02
 
@@ -66,6 +71,11 @@ func NewSSD1306(width, height int) (*SSD1306, error) {
 	}
 	logger.Infof("[SSD1306] Initialized %dx%d display, buffer size: %d bytes", width, height, len(d.buffer))
 
+	if err := d.reset(); err != nil {
+		i2cBus.Close()
+		return nil, fmt.Errorf("failed to reset SSD1306: %w", err)
+	}
+
 	if err := d.init(); err != nil {
 		i2cBus.Close()
 		return nil, fmt.Errorf("failed to initialize SSD1306: %w", err)
@@ -74,11 +84,49 @@ func NewSSD1306(width, height int) (*SSD1306, error) {
 	return d, nil
 }
 
+// reset performs a hardware reset of the SSD1306 display using GPIO
+func (d *SSD1306) reset() error {
+	chip, err := gpiocdev.NewChip("gpiochip0")
+	if err != nil {
+		return fmt.Errorf("cannot open gpiochip0: %w", err)
+	}
+	defer chip.Close()
+
+	resetPin := os.Getenv("OLED_RESET") // "D23"
+	if resetPin == "" {
+		return nil
+	}
+
+	resetPin = strings.ToLower(resetPin)
+	resetPin = strings.TrimPrefix(resetPin, "d")
+
+	pinNum, err := strconv.Atoi(resetPin)
+	if err != nil {
+		return fmt.Errorf("invalid OLED_RESET pin: %w", err)
+	}
+
+	line, err := chip.RequestLine(pinNum, gpiocdev.AsOutput(0))
+	if err != nil {
+		return fmt.Errorf("cannot request gpio line: %w", err)
+	}
+	defer line.Close()
+
+	time.Sleep(10 * time.Millisecond)
+
+	if err := line.SetValue(1); err != nil {
+		return fmt.Errorf("cannot set gpio high: %w", err)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+
+	return nil
+}
+
 // init initializes the SSD1306 display with proper configuration
 func (d *SSD1306) init() error {
 	cmds := []byte{
 		ssd1306DisplayOff,
-		ssd1306MemoryMode, 0x02,
+		ssd1306MemoryMode, 0x00, // 0x00 from tinygo, 0x02 working but stops with some time
 		ssd1306SetDisplayClockDiv, 0x80,
 		ssd1306SetMultiplex, byte(d.height - 1),
 		ssd1306SetDisplayOffset, 0x00,
@@ -96,10 +144,10 @@ func (d *SSD1306) init() error {
 	cmds = append(cmds,
 		ssd1306SetPrecharge, 0xF1,
 		ssd1306SetVcomDetect, 0x40,
-		ssd1306SetContrast, 0xFF,
+		ssd1306SetContrast, 0x8F, // 0x8F from tinygo, 0xFF was
 		ssd1306DisplayAllOnResume,
 		ssd1306NormalDisplay,
-		ssd1306SetIrefSelect, 0x30,
+		ssd1306DeactivateScroll,
 		ssd1306ChargePump, 0x14,
 	)
 
