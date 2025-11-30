@@ -168,7 +168,7 @@ func (c *Controller) getTemperatures() (cpu, disk float64) {
 func (c *Controller) getMaxDiskTemp() float64 {
 	disks := disk.GetSATADisks()
 	if len(disks) == 0 {
-		return 0
+		return 0.01
 	}
 
 	var maxTemp float64
