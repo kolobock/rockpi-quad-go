@@ -66,6 +66,7 @@ type DiskConfig struct {
 
 type NetworkConfig struct {
 	Interfaces []string
+	SkipPage   bool
 }
 
 type KeyConfig struct {
@@ -158,6 +159,7 @@ func Load(path string) (*Config, error) {
 	if interfaces := netSec.Key("interfaces").String(); interfaces != "" {
 		cfg.Network.Interfaces = strings.Split(interfaces, ",")
 	}
+	cfg.Network.SkipPage = netSec.Key("skip_page").MustBool(false)
 
 	keySec := iniFile.Section("key")
 	cfg.Key.Click = keySec.Key("click").MustString("slider")

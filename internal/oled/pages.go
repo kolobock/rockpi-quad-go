@@ -270,19 +270,17 @@ func (c *Controller) getDiskUsage() []string {
 	return usage
 }
 
-func (c *Controller) getNetworkInterfaces() []string {
-	if len(c.cfg.Network.Interfaces) > 0 {
-		var interfaces []string
-		for _, iface := range c.cfg.Network.Interfaces {
-			if _, err := os.Stat("/sys/class/net/" + iface); err == nil {
-				interfaces = append(interfaces, iface)
-			}
-		}
-		return interfaces
+func (c *Controller) getNetworkInterfaces() (interfaces []string) {
+	if c.cfg.Network.SkipPage {
+		return
 	}
 
-	var interfaces []string
-	for _, iface := range []string{"eth0", "wlan0", "enp0s3"} {
+	var ifs = c.cfg.Network.Interfaces
+	if len(c.cfg.Network.Interfaces) <= 0 {
+		ifs = []string{"eth0", "wlan0", "enp0s3"}
+	}
+
+	for _, iface := range ifs {
 		if _, err := os.Stat("/sys/class/net/" + iface); err == nil {
 			interfaces = append(interfaces, iface)
 		}

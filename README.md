@@ -76,8 +76,16 @@ Main configuration file (same format as Python version) containing:
 - OLED display settings (rotation, temperature unit, enabled/disabled)
 - Disk monitoring configuration (mount points for usage/I/O, temperature disks)
 - Network interface configuration
+    - `skip_page` (boolean): when true the Network I/O OLED page is disabled
 - Key/button behavior settings (click, double-click, long-press actions)
 - Timing settings for button detection
+
+Example network configuration in `/etc/rockpi-quad.conf` to configure interfaces and skip the Network I/O page:
+```ini
+[network]
+interfaces = eth0,wlan0
+skip_page = true
+```
 
 ### `/etc/rockpi-quad.env`
 Environment configuration file (same as Python version) containing hardware-specific settings:
