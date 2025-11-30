@@ -13,7 +13,7 @@ A Go reimplementation of the RockPi SATA HAT fan and OLED controller.
 - ✅ Minimum duty cycle threshold (7%)
 - ✅ SSD1306 OLED display (128x32) with multi-font support
 - ✅ Multiple display pages (system info, fan speed, disk usage, network I/O, disk I/O, disk temps)
-- ✅ Configurable page cycling (10-second intervals)
+- ✅ Configurable page cycling (5-second intervals)
 - ✅ 180° display rotation support
 - ✅ Button input handling (click/double-click/long-press)
 - ✅ Configurable button actions (slider, switch, poweroff, reboot, custom commands)
@@ -21,10 +21,12 @@ A Go reimplementation of the RockPi SATA HAT fan and OLED controller.
 
 ## Installation
 
+### Building for ARM64 (Rock Pi 4, Raspberry Pi 4)
+
 ```bash
 # Build the binary
 cd rockpi-quad-go
-GOOS=linux GOARCH=arm64 go build -o rockpi-quad-go ./cmd/rockpi-quad
+GOOS=linux GOARCH=arm64 go build -o rockpi-quad-go ./cmd/rockpi-quad-go
 # or 
 make build
 
@@ -178,12 +180,6 @@ The following environment variables are loaded from `/etc/rockpi-quad.env`:
 - **Faster startup time** (no module loading)
 - **Built-in concurrency** with goroutines
 - **Static typing** catches errors at compile time
-
-## Building for ARM64 (Rock Pi 4)
-
-```bash
-GOOS=linux GOARCH=arm64 go build -o rockpi-quad-go ./cmd/rockpi-quad-go
-```
 
 ## Project Structure
 
