@@ -429,8 +429,6 @@ func (c *Controller) getDiskTemperatures() []string {
 		}
 	}
 
-	disk.RefreshLastCheckTime()
-
 	return temps
 }
 

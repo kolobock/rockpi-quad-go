@@ -182,8 +182,6 @@ func (c *Controller) getMaxDiskTemp() float64 {
 		}
 	}
 
-	disk.RefreshLastCheckTime()
-
 	return maxTemp
 }
 
