@@ -17,6 +17,7 @@ var (
 	lastCheckTime   time.Time
 	checkMutex      sync.Mutex
 	recheckInterval = 30 * time.Second
+	diskTempCache   = make(map[string]float64)
 )
 
 // GetSATADisks returns a list of SATA disk devices (/dev/sdX)
@@ -28,11 +29,9 @@ func GetSATADisks() []string {
 	checkMutex.Lock()
 	defer checkMutex.Unlock()
 
-	if len(diskListCache) == 0 || (lastCheckTime.IsZero() && len(diskListCache) == 0) {
-		if lastCheckTime.IsZero() || time.Since(lastCheckTime) >= recheckInterval {
-			diskListCache = fetchDiskList()
-			lastCheckTime = time.Now()
-		}
+	if lastCheckTime.IsZero() || time.Since(lastCheckTime) > recheckInterval {
+		diskListCache = fetchDiskList()
+		lastCheckTime = time.Now()
 	}
 
 	return diskListCache
@@ -53,8 +52,26 @@ func fetchDiskList() []string {
 	return disks
 }
 
+func RefreshLastCheckTime() {
+	checkMutex.Lock()
+	defer checkMutex.Unlock()
+	lastCheckTime = time.Time{}
+}
+
 // GetTemperature reads disk temperature using smartctl
 func GetTemperature(device string) (float64, error) {
+	if time.Since(lastCheckTime) < recheckInterval {
+		checkMutex.Lock()
+		temp, ok := diskTempCache[device]
+		checkMutex.Unlock()
+		if ok {
+			return temp, nil
+		}
+	}
+
+	checkMutex.Lock()
+	defer checkMutex.Unlock()
+
 	cmd := exec.Command("sh", "-c", "smartctl -A "+device+" | egrep '^190' | awk '{print $10}'")
 	output, err := cmd.Output()
 	if err != nil {
@@ -89,6 +106,7 @@ func GetTemperature(device string) (float64, error) {
 		return 0, fmt.Errorf("failed to parse temperature '%s': %w", tempStr, err)
 	}
 
+	diskTempCache[device] = temp
 	return temp, nil
 }
 

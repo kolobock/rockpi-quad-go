@@ -416,18 +416,10 @@ func (c *Controller) getDiskRate(diskName string) (float64, float64) {
 	return readRate, writeRate
 }
 
-func (c *Controller) initTempDisks() {
-	if !c.cfg.Disk.DisksTemperature {
-		return
-	}
-
-	c.tempDiskDevs = disk.GetSATADisks()
-}
-
 func (c *Controller) getDiskTemperatures() []string {
 	var temps []string
 
-	for _, diskDev := range c.tempDiskDevs {
+	for _, diskDev := range disk.GetSATADisks() {
 		temp, err := disk.GetTemperature(diskDev)
 		diskName := strings.TrimPrefix(diskDev, "/dev/")
 		if err == nil && temp > 0 {
@@ -436,6 +428,8 @@ func (c *Controller) getDiskTemperatures() []string {
 			temps = append(temps, fmt.Sprintf("%s --°C", diskName))
 		}
 	}
+
+	disk.RefreshLastCheckTime()
 
 	return temps
 }
