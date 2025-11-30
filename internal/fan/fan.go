@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	MinDutyCycle = 0.07
+	MinDutyCycle = 0.05
 )
 
 type Controller struct {
