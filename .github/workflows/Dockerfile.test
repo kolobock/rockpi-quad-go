@@ -1,5 +1,5 @@
 # Dockerfile for running tests on ARM64 platform
-ARG GOVERSION=1.25
+ARG GOVERSION="1.25"
 FROM --platform=linux/arm64 golang:${GOVERSION}-alpine
 
 # Install build dependencies
