@@ -1,6 +1,6 @@
 module github.com/kolobock/rockpi-quad-go
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/d2r2/go-i2c v0.0.0-20191123181816-73a8a799d6bc
