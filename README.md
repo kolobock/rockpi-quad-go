@@ -208,7 +208,21 @@ rockpi-quad-go/
     └── DejaVuSansMono-Bold.ttf  # TrueType font for OLED
 ```
 
-## Testing
+## Development
+
+### Setup Development Environment
+
+```bash
+# Setup git hooks and install dependencies
+./.github/setup-dev.sh
+```
+
+This will:
+- Install pre-commit hooks for local validation
+- Download Go dependencies
+- Check for required tools (golangci-lint)
+
+### Testing
 
 The project includes comprehensive unit tests for core functionality:
 
@@ -217,26 +231,59 @@ The project includes comprehensive unit tests for core functionality:
 make test
 
 # Run all tests (requires Linux environment)
-make test-linux
+make test-all
 
 # Run tests with coverage
-go test -cover ./pkg/... ./internal/config
+go test -cover ./pkg/... ./internal/config ./internal/logger
 
 # Run specific package tests
 go test -v ./pkg/pwm
 go test -v ./internal/config
+go test -v ./internal/logger
+go test -v ./cmd/rockpi-quad-go
 ```
 
-### Test Coverage
+#### Test Coverage
 
+- **cmd/rockpi-quad-go**: Button action mapping
 - **pkg/pwm**: PWM duty cycle calculation and sysfs operations
 - **internal/config**: Configuration file loading and defaults
+- **internal/logger**: Verbose logging and thread-safe operations
 - **internal/fan**: Fan speed calculation (linear and non-linear modes)
 - **internal/button**: Button event type handling
 - **internal/oled**: Display rendering, page generation, and image rotation
 - **internal/disk**: Device name parsing and temperature monitoring
 
 Note: Some tests require a Linux environment with GPIO hardware support to run fully.
+
+### CI/CD
+
+The project uses GitHub Actions for continuous integration:
+
+- ✅ **Linting**: golangci-lint with 25+ checks (includes govet)
+- ✅ **Formatting**: gofmt validation
+- ✅ **Go Mod Verify**: Dependency integrity checks
+- ✅ **Build**: Cross-compilation for linux/arm64 and linux/amd64
+- ✅ **Tests**: Unit tests with coverage reporting
+- ✅ **ARM64 Tests**: Docker-based ARM64 emulation with QEMU
+
+See [.github/CI.md](.github/CI.md) for detailed CI/CD documentation.
+
+#### Running Checks Locally
+
+```bash
+# Format code
+gofmt -w .
+
+# Run linter
+golangci-lint run --timeout=5m
+
+# Verify dependencies
+go mod tidy && go mod verify
+
+# Run all checks (like CI)
+./.github/hooks/pre-commit.sh
+```
 
 ## License
 

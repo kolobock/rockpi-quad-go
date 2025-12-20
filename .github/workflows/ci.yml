@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Check formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "The following files are not formatted:"
+            gofmt -l .
+            echo "Run 'gofmt -w .' to fix"
+            exit 1
+          fi
+
+  mod-verify:
+    name: Go Mod Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Check go.mod and go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [arm64, amd64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -v -o build/rockpi-quad-go-${{ matrix.goarch }} ./cmd/rockpi-quad-go
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rockpi-quad-go-${{ matrix.goarch }}
+          path: build/rockpi-quad-go-${{ matrix.goarch }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run tests (non-hardware packages)
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./internal/config ./internal/logger
+
+      - name: Compile tests for Linux ARM64
+        env:
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          echo "Compiling all tests for linux/arm64..."
+          go test -c -o /dev/null ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.txt
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  test-arm64:
+    name: Test on ARM64
+    runs-on: ubuntu-latest
+    # Uncomment to use self-hosted ARM64 runner
+    # runs-on: [self-hosted, linux, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and test in ARM64 container
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --file .github/workflows/Dockerfile.test \
+            --tag rockpi-test:arm64 \
+            --load \
+            .
+          
+          docker run --rm --platform linux/arm64 rockpi-test:arm64
