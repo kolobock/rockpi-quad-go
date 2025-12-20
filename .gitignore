@@ -15,7 +15,9 @@
 go.work
 
 # Binary
-rockpi-quad
+build/*
+/rockpi-quad
+/rockpi-quad-go
 
 # IDE
 .idea/
@@ -23,6 +25,3 @@ rockpi-quad
 *.swp
 *.swo
 *~
-
-build/*
-rockpi-quad-go
