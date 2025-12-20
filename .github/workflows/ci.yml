@@ -12,15 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: 1.25
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           args: --timeout=5m
@@ -30,12 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Check formatting
         run: |
@@ -51,12 +51,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Download dependencies
         run: go mod download
@@ -74,44 +74,46 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goos: [linux]
-        goarch: [arm64, amd64]
+        goversion: ['1.24', '1.25']
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: ${{ matrix.goversion }}
 
       - name: Build
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: linux
+          GOARCH: arm64
         run: |
-          go build -v -o build/rockpi-quad-go-${{ matrix.goarch }} ./cmd/rockpi-quad-go
+          go build -v -o build/rockpi-quad-go-${{ matrix.goversion }} ./cmd/rockpi-quad-go
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: rockpi-quad-go-${{ matrix.goarch }}
-          path: build/rockpi-quad-go-${{ matrix.goarch }}
+          name: rockpi-quad-go-${{ matrix.goversion }}
+          path: build/rockpi-quad-go-${{ matrix.goversion }}
 
   test:
     name: Test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goversion: ['1.24', '1.25']
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: ${{ matrix.goversion }}
 
       - name: Run tests (non-hardware packages)
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./internal/config ./internal/logger
+        run: go test -v -race -coverprofile=coverage-${{ matrix.goversion }}.txt -covermode=atomic ./pkg/... ./internal/config ./internal/logger
 
       - name: Compile tests for Linux ARM64
         env:
@@ -124,7 +126,7 @@ jobs:
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./coverage.txt
+          files: ./coverage-${{ matrix.goversion }}.txt
           flags: unittests
           name: codecov-umbrella
         continue-on-error: true
@@ -132,11 +134,12 @@ jobs:
   test-arm64:
     name: Test on ARM64
     runs-on: ubuntu-latest
-    # Uncomment to use self-hosted ARM64 runner
-    # runs-on: [self-hosted, linux, arm64]
+    strategy:
+      matrix:
+        goversion: ['1.24', '1.25']
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -151,8 +154,9 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             --file .github/workflows/Dockerfile.test \
-            --tag rockpi-test:arm64 \
+            --build-arg GOVERSION=${{ matrix.goversion }} \
+            --tag rockpi-test-go-${{ matrix.goversion }}:arm64 \
             --load \
             .
           
-          docker run --rm --platform linux/arm64 rockpi-test:arm64
+          docker run --rm --platform linux/arm64 rockpi-test-go-${{ matrix.goversion }}:arm64
