@@ -11,7 +11,7 @@ clean:
 	go clean
 
 test:
-	go test -v ./pkg/... ./internal/config
+	go test -v ./pkg/... ./internal/config ./internal/logger
 
 test-linux:
 	GOOS=linux go test -v ./...

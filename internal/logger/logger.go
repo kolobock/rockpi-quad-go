@@ -22,7 +22,7 @@ func SetVerbose(enabled bool) {
 }
 
 // Info logs informational messages only if verbose logging is enabled
-func Info(format string, v ...interface{}) {
+func Info(format string, v ...any) {
 	mu.RLock()
 	verbose := verboseLogging
 	mu.RUnlock()
@@ -33,12 +33,12 @@ func Info(format string, v ...interface{}) {
 }
 
 // Infof is an alias for Info
-func Infof(format string, v ...interface{}) {
+func Infof(format string, v ...any) {
 	Info(format, v...)
 }
 
 // Infoln logs informational messages only if verbose logging is enabled
-func Infoln(v ...interface{}) {
+func Infoln(v ...any) {
 	mu.RLock()
 	verbose := verboseLogging
 	mu.RUnlock()
@@ -49,21 +49,21 @@ func Infoln(v ...interface{}) {
 }
 
 // Error logs error messages (always logged)
-func Error(format string, v ...interface{}) {
+func Error(format string, v ...any) {
 	log.Printf(format, v...)
 }
 
 // Errorf is an alias for Error
-func Errorf(format string, v ...interface{}) {
+func Errorf(format string, v ...any) {
 	log.Printf(format, v...)
 }
 
 // Fatal logs fatal messages and exits (always logged)
-func Fatal(format string, v ...interface{}) {
+func Fatal(format string, v ...any) {
 	log.Fatalf(format, v...)
 }
 
 // Fatalf is an alias for Fatal
-func Fatalf(format string, v ...interface{}) {
+func Fatalf(format string, v ...any) {
 	log.Fatalf(format, v...)
 }
