@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	MinDutyCycle = 0.05
+	MinDutyCycle     = 0.05
+	polarityInversed = "inversed"
 )
 
 type Controller struct {
@@ -45,7 +46,7 @@ func New(cfg *config.Config) (*Controller, error) {
 	}
 	ctrl.cpuPWM = cpuPWM
 
-	if cfg.Fan.Polarity == "inversed" {
+	if cfg.Fan.Polarity == polarityInversed {
 		cpuPWM.SetInversed(true)
 	}
 
@@ -56,7 +57,7 @@ func New(cfg *config.Config) (*Controller, error) {
 			return nil, fmt.Errorf("failed to init disk PWM: %w", err)
 		}
 		ctrl.diskPWM = diskPWM
-		if cfg.Fan.Polarity == "inversed" {
+		if cfg.Fan.Polarity == polarityInversed {
 			diskPWM.SetInversed(true)
 		}
 	}
@@ -75,7 +76,7 @@ func (c *Controller) ToggleFan() {
 		logger.Infoln("Fan control enabled - temperature-based control resumed")
 	} else {
 		fullSpeed := 100.0
-		if c.cfg.Fan.Polarity == "inversed" {
+		if c.cfg.Fan.Polarity == polarityInversed {
 			fullSpeed = 0.0
 		}
 

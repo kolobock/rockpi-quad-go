@@ -17,6 +17,10 @@ import (
 	"github.com/kolobock/rockpi-quad-go/internal/oled"
 )
 
+const (
+	actionNone = "none"
+)
+
 func main() {
 	cfg, err := config.Load("/etc/rockpi-quad.conf")
 	if err != nil {
@@ -158,6 +162,6 @@ func getButtonAction(cfg *config.Config, event button.EventType) string {
 	case button.LongPress:
 		return cfg.Key.Press
 	default:
-		return "none"
+		return actionNone
 	}
 }

@@ -11,6 +11,11 @@ import (
 	"github.com/kolobock/rockpi-quad-go/internal/disk"
 )
 
+const (
+	cpuTempNA = "CPU: N/A"
+	ipNA      = "IP: N/A"
+)
+
 // Page represents a displayable page
 type Page interface {
 	GetPageText() []TextItem
@@ -168,11 +173,11 @@ func (c *Controller) getUptime() string {
 func (c *Controller) getCPUTemp() string {
 	data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp")
 	if err != nil {
-		return "CPU: N/A"
+		return cpuTempNA
 	}
 	temp, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
 	if err != nil {
-		return "CPU: N/A"
+		return cpuTempNA
 	}
 	temp /= 1000.0
 
@@ -185,13 +190,13 @@ func (c *Controller) getCPUTemp() string {
 func (c *Controller) getIPAddress() string {
 	out, err := exec.Command("hostname", "-I").Output()
 	if err != nil {
-		return "IP: N/A"
+		return ipNA
 	}
 	fields := strings.Fields(string(out))
 	if len(fields) > 0 {
 		return "IP: " + fields[0]
 	}
-	return "IP: N/A"
+	return ipNA
 }
 
 func (c *Controller) getCPULoad() string {
