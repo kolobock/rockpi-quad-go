@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/warthog618/go-gpiocdev"
+
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/kolobock/rockpi-quad-go/internal/logger"
-	"github.com/warthog618/go-gpiocdev"
 )
 
 // EventType represents the type of button event

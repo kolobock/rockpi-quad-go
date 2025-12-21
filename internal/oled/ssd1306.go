@@ -10,8 +10,9 @@ import (
 
 	i2c "github.com/d2r2/go-i2c"
 	i2cl "github.com/d2r2/go-logger"
-	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"github.com/warthog618/go-gpiocdev"
+
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 )
 
 // SSD1306 command constants

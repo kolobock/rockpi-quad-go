@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/golang/freetype/truetype"
-	"github.com/kolobock/rockpi-quad-go/internal/config"
-	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
+
+	"github.com/kolobock/rockpi-quad-go/internal/config"
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 )
 
 const (
