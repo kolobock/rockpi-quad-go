@@ -79,8 +79,8 @@ func GetTemperature(device string) (float64, error) {
 			if strings.Contains(line, "Temperature_Celsius") || strings.Contains(line, "Airflow_Temperature_Cel") {
 				fields := strings.Fields(line)
 				if len(fields) >= 10 {
-					temp, err := strconv.ParseFloat(fields[9], 64)
-					if err == nil {
+					temp, parseErr := strconv.ParseFloat(fields[9], 64)
+					if parseErr == nil {
 						return temp, nil
 					}
 				}
