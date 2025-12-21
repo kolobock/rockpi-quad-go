@@ -56,7 +56,9 @@ type SSD1306 struct {
 
 // NewSSD1306 creates a new SSD1306 driver instance
 func NewSSD1306(width, height int) (*SSD1306, error) {
-	i2cl.ChangePackageLogLevel("i2c", i2cl.InfoLevel)
+	if err := i2cl.ChangePackageLogLevel("i2c", i2cl.InfoLevel); err != nil {
+		logger.Infof("Failed to change i2c log level: %v", err)
+	}
 
 	i2cBus, err := i2c.NewI2C(ssd1306I2CAddr, 1)
 	if err != nil {
@@ -251,6 +253,8 @@ func (d *SSD1306) SetDisplayOn(on bool) error {
 
 // Close closes the I2C connection and turns off the display
 func (d *SSD1306) Close() error {
-	d.SetDisplayOn(false)
+	if err := d.SetDisplayOn(false); err != nil {
+		logger.Errorf("Failed to turn off display: %v", err)
+	}
 	return d.i2c.Close()
 }

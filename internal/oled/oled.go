@@ -142,7 +142,9 @@ func (c *Controller) Close() error {
 	defer c.mu.Unlock()
 
 	c.clearImage()
-	c.displayToDevice()
+	if err := c.displayToDevice(); err != nil {
+		logger.Errorf("Failed to clear display: %v", err)
+	}
 
 	return c.dev.Close()
 }
@@ -216,7 +218,9 @@ func (c *Controller) showWelcome() {
 	c.clearImage()
 	c.drawText(0, 0, "ROCKPi QUAD HAT", 14)
 	c.drawText(32, 16, "Loading...", 12)
-	c.display()
+	if err := c.display(); err != nil {
+		logger.Errorf("Failed to display welcome: %v", err)
+	}
 	time.Sleep(2 * time.Second)
 }
 
@@ -226,10 +230,14 @@ func (c *Controller) showGoodbye() {
 
 	c.clearImage()
 	c.drawText(32, 8, "Good Bye ~", 14)
-	c.display()
+	if err := c.display(); err != nil {
+		logger.Errorf("Failed to display goodbye: %v", err)
+	}
 	time.Sleep(2 * time.Second)
 	c.clearImage()
-	c.display()
+	if err := c.display(); err != nil {
+		logger.Errorf("Failed to clear display: %v", err)
+	}
 }
 
 func (c *Controller) nextPage() {
@@ -250,5 +258,7 @@ func (c *Controller) nextPage() {
 	for _, item := range items {
 		c.drawText(item.X, item.Y, item.Text, item.FontSize)
 	}
-	c.display()
+	if err := c.display(); err != nil {
+		logger.Errorf("Failed to display page: %v", err)
+	}
 }

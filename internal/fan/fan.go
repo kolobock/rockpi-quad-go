@@ -81,11 +81,15 @@ func (c *Controller) ToggleFan() {
 
 		logger.Infof("Fan control disabled - setting fans to full speed (DC: %.0f%%)", fullSpeed)
 		if c.cpuPWM != nil {
-			c.cpuPWM.SetDutyCycle(fullSpeed)
+			if err := c.cpuPWM.SetDutyCycle(fullSpeed); err != nil {
+				logger.Errorf("Failed to set CPU fan duty cycle: %v", err)
+			}
 			c.lastCPUDC = fullSpeed
 		}
 		if c.diskPWM != nil {
-			c.diskPWM.SetDutyCycle(fullSpeed)
+			if err := c.diskPWM.SetDutyCycle(fullSpeed); err != nil {
+				logger.Errorf("Failed to set disk fan duty cycle: %v", err)
+			}
 			c.lastDiskDC = fullSpeed
 		}
 	}
@@ -239,11 +243,15 @@ func (c *Controller) GetFanSpeeds() (cpuPercent, diskPercent float64) {
 
 func (c *Controller) Close() error {
 	if c.cpuPWM != nil {
-		c.cpuPWM.SetDutyCycle(0)
+		if err := c.cpuPWM.SetDutyCycle(0); err != nil {
+			logger.Errorf("Failed to reset CPU PWM duty cycle: %v", err)
+		}
 		c.cpuPWM.Close()
 	}
 	if c.diskPWM != nil {
-		c.diskPWM.SetDutyCycle(0)
+		if err := c.diskPWM.SetDutyCycle(0); err != nil {
+			logger.Errorf("Failed to reset disk PWM duty cycle: %v", err)
+		}
 		c.diskPWM.Close()
 	}
 	return nil

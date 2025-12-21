@@ -52,7 +52,9 @@ func (p *PWM) SetInversed(inversed bool) {
 	if inversed {
 		polarity = "inversed"
 	}
-	p.writeSysfs("polarity", polarity)
+	if err := p.writeSysfs("polarity", polarity); err != nil {
+		// Log but don't fail, as this may not be supported on all systems
+	}
 }
 
 func (p *PWM) SetDutyCycle(dutyCycle float64) error {
@@ -65,7 +67,9 @@ func (p *PWM) SetDutyCycle(dutyCycle float64) error {
 }
 
 func (p *PWM) Close() error {
-	p.SetDutyCycle(0)
+	if err := p.SetDutyCycle(0); err != nil {
+		return fmt.Errorf("failed to reset duty cycle: %w", err)
+	}
 	return nil
 }
 
