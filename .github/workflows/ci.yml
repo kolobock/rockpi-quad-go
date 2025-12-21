@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
 
 jobs:
   lint:
@@ -134,9 +134,6 @@ jobs:
   test-arm64:
     name: Test on ARM64
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goversion: ['1.24', '1.25']
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -154,9 +151,8 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             --file .github/workflows/Dockerfile.test \
-            --build-arg GOVERSION=${{ matrix.goversion }} \
-            --tag rockpi-test-go-${{ matrix.goversion }}:arm64 \
+            --tag rockpi-test-go:arm64 \
             --load \
             .
           
-          docker run --rm --platform linux/arm64 rockpi-test-go-${{ matrix.goversion }}:arm64
+          docker run --rm --platform linux/arm64 rockpi-test-go:arm64
