@@ -21,7 +21,10 @@ func (m *mockFontFace) Close() error {
 	return nil
 }
 
-func (m *mockFontFace) Glyph(dot fixed.Point26_6, r rune) (dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
+func (m *mockFontFace) Glyph(
+	dot fixed.Point26_6,
+	r rune,
+) (dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
 	return image.Rectangle{}, nil, image.Point{}, fixed.I(8), true
 }
 
