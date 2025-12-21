@@ -132,40 +132,46 @@ func (c *Controller) detectButtonEvent(ctx context.Context) EventType {
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventFallingEdge {
 				pressStart = time.Now()
-				goto waitForRelease
+				return c.handleButtonPress(ctx, pressStart)
 			}
 		case <-time.After(200 * time.Millisecond):
 			return ""
 		}
 	}
+}
 
-waitForRelease:
+func (c *Controller) handleButtonPress(ctx context.Context, pressStart time.Time) EventType {
 	for {
 		select {
 		case <-ctx.Done():
 			return ""
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventRisingEdge {
-				goto checkDoubleClick
+				return c.checkForDoubleClick(ctx)
 			}
 		case <-time.After(50 * time.Millisecond):
 			if time.Since(pressStart) >= c.pressTime {
-				for {
-					select {
-					case <-ctx.Done():
-						return LongPress
-					case evt := <-c.eventChan:
-						if evt.Type == gpiocdev.LineEventRisingEdge {
-							return LongPress
-						}
-					case <-time.After(50 * time.Millisecond):
-					}
-				}
+				return c.waitForLongPressRelease(ctx)
 			}
 		}
 	}
+}
 
-checkDoubleClick:
+func (c *Controller) waitForLongPressRelease(ctx context.Context) EventType {
+	for {
+		select {
+		case <-ctx.Done():
+			return LongPress
+		case evt := <-c.eventChan:
+			if evt.Type == gpiocdev.LineEventRisingEdge {
+				return LongPress
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+func (c *Controller) checkForDoubleClick(ctx context.Context) EventType {
 	deadline := time.Now().Add(c.twiceWindow)
 	for time.Now().Before(deadline) {
 		select {
@@ -173,25 +179,28 @@ checkDoubleClick:
 			return Click
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventFallingEdge {
-				for {
-					select {
-					case <-ctx.Done():
-						return DoubleClick
-					case evt := <-c.eventChan:
-						if evt.Type == gpiocdev.LineEventRisingEdge {
-							c.drainEventChannel()
-							return DoubleClick
-						}
-					case <-time.After(50 * time.Millisecond):
-					}
-				}
+				return c.waitForSecondClickRelease(ctx)
 			}
 		case <-time.After(time.Until(deadline)):
 			return Click
 		}
 	}
-
 	return Click
+}
+
+func (c *Controller) waitForSecondClickRelease(ctx context.Context) EventType {
+	for {
+		select {
+		case <-ctx.Done():
+			return DoubleClick
+		case evt := <-c.eventChan:
+			if evt.Type == gpiocdev.LineEventRisingEdge {
+				c.drainEventChannel()
+				return DoubleClick
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }
 
 // drainEventChannel clears any pending events from the event channel

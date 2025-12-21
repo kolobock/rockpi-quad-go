@@ -21,6 +21,73 @@ const (
 	actionNone = "none"
 )
 
+func handleButtonEvents(ctx context.Context, cfg *config.Config, buttonCtrl *button.Controller,
+	fanCtrl *fan.Controller, oledCtrl *oled.Controller, buttonChan chan struct{}, cancel context.CancelFunc) {
+	time.Sleep(500 * time.Millisecond)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event := <-buttonCtrl.PressChan():
+			action := getButtonAction(cfg, event)
+			logger.Infof("Button event: %s (action: %s)", event, action)
+			oledCtrl.NotifyBtnPress()
+
+			switch action {
+			case "slider":
+				select {
+				case buttonChan <- struct{}{}:
+				default:
+				}
+			case "switch":
+				fanCtrl.ToggleFan()
+			case "poweroff":
+				executePoweroff(cancel)
+			case "reboot":
+				executeReboot(cancel)
+			case actionNone:
+			default:
+				executeCustomCommand(action)
+			}
+		}
+	}
+}
+
+func executePoweroff(cancel context.CancelFunc) {
+	logger.Infoln("Poweroff requested via button press")
+	go func() {
+		time.Sleep(1 * time.Second)
+		if err := exec.Command("poweroff").Run(); err != nil {
+			logger.Errorf("Failed to execute poweroff: %v", err)
+		}
+	}()
+	cancel()
+}
+
+func executeReboot(cancel context.CancelFunc) {
+	logger.Infoln("Reboot requested via button press")
+	go func() {
+		time.Sleep(1 * time.Second)
+		if err := exec.Command("reboot").Run(); err != nil {
+			logger.Errorf("Failed to execute reboot: %v", err)
+		}
+	}()
+	cancel()
+}
+
+func executeCustomCommand(action string) {
+	logger.Infof("Executing custom command: %s", action)
+	go func() {
+		cmd := exec.Command("sh", "-c", action)
+		if err := cmd.Run(); err != nil {
+			logger.Errorf("Failed to execute command '%s': %v", action, err)
+		} else {
+			logger.Infof("Command '%s' executed successfully", action)
+		}
+	}()
+}
+
 func main() {
 	cfg, err := config.Load("/etc/rockpi-quad.conf")
 	if err != nil {
@@ -79,54 +146,7 @@ func main() {
 			buttonChan := make(chan struct{}, 10)
 
 			if buttonCtrl != nil {
-				go func() {
-					time.Sleep(500 * time.Millisecond)
-
-					for event := range buttonCtrl.PressChan() {
-						action := getButtonAction(cfg, event)
-						logger.Infof("Button event: %s (action: %s)", event, action)
-						oledCtrl.NotifyBtnPress()
-
-						switch action {
-						case "slider":
-							select {
-							case buttonChan <- struct{}{}:
-							default:
-							}
-						case "switch":
-							fanCtrl.ToggleFan()
-						case "poweroff":
-							logger.Infoln("Poweroff requested via button press")
-							go func() {
-								time.Sleep(1 * time.Second)
-								if err := exec.Command("poweroff").Run(); err != nil {
-									logger.Errorf("Failed to execute poweroff: %v", err)
-								}
-							}()
-							cancel()
-						case "reboot":
-							logger.Infoln("Reboot requested via button press")
-							go func() {
-								time.Sleep(1 * time.Second)
-								if err := exec.Command("reboot").Run(); err != nil {
-									logger.Errorf("Failed to execute reboot: %v", err)
-								}
-							}()
-							cancel()
-						case "none":
-						default:
-							logger.Infof("Executing custom command: %s", action)
-							go func() {
-								cmd := exec.Command("sh", "-c", action)
-								if err := cmd.Run(); err != nil {
-									logger.Errorf("Failed to execute command '%s': %v", action, err)
-								} else {
-									logger.Infof("Command '%s' executed successfully", action)
-								}
-							}()
-						}
-					}
-				}()
+				go handleButtonEvents(ctx, cfg, buttonCtrl, fanCtrl, oledCtrl, buttonChan, cancel)
 			}
 			if err := oledCtrl.Run(ctx, buttonChan); err != nil {
 				logger.Errorf("OLED controller error: %v", err)
