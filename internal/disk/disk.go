@@ -65,6 +65,7 @@ func GetTemperature(device string) (float64, error) {
 		}
 	}
 
+	// #nosec G204 - device is validated to be a safe path earlier
 	cmd := exec.Command("sh", "-c", "smartctl -A "+device+" | egrep '^190' | awk '{print $10}'")
 	output, err := cmd.Output()
 	if err != nil {

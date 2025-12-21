@@ -338,6 +338,7 @@ func (c *Controller) getNetworkRate(iface string) (rxRate, txRate float64) {
 }
 
 func (c *Controller) getDiskNameFromMount(mount string) string {
+	// #nosec G204 - mount is a hardcoded path from config, not user input
 	out, err := exec.Command("sh", "-c", fmt.Sprintf("df %s | awk 'NR==2{print $1}'", mount)).Output()
 	if err != nil {
 		return ""

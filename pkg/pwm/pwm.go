@@ -28,7 +28,7 @@ func New(chip string, channel int) (*PWM, error) {
 
 	if _, err := os.Stat(p.basePath); os.IsNotExist(err) {
 		exportPath := filepath.Join("/", "sys", "class", "pwm", chip, "export")
-		if err := os.WriteFile(exportPath, []byte(strconv.Itoa(channel)), 0644); err != nil {
+		if err := os.WriteFile(exportPath, []byte(strconv.Itoa(channel)), 0600); err != nil {
 			if !strings.Contains(err.Error(), "device or resource busy") {
 				return nil, fmt.Errorf("failed to export PWM: %w", err)
 			}
@@ -74,5 +74,5 @@ func (p *PWM) Close() error {
 
 func (p *PWM) writeSysfs(filename, value string) error {
 	path := filepath.Join(p.basePath, filename)
-	return os.WriteFile(path, []byte(value), 0644)
+	return os.WriteFile(path, []byte(value), 0600)
 }
