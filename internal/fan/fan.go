@@ -148,8 +148,9 @@ func (c *Controller) update() error {
 		}
 	}
 
+	fansRunning := c.enabled && (cpuDC > 0 || diskDC > 0)
 	logger.Infof("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f, run: %t",
-		cpuTemp, cpuDC*100, diskTemp, diskDC*100, c.enabled)
+		cpuTemp, cpuDC*100, diskTemp, diskDC*100, fansRunning)
 
 	return nil
 }
