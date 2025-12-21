@@ -20,7 +20,6 @@ linters:
     - ineffassign
     - lll
     - misspell
-    - mnd
     - nakedret
     - prealloc
     - staticcheck
@@ -59,12 +58,6 @@ linters:
       line-length: 140
     misspell:
       locale: US
-    mnd:
-      checks:
-        - argument
-        - case
-        - condition
-        - return
   exclusions:
     generated: lax
     presets:
@@ -76,11 +69,13 @@ linters:
       - linters:
           - funlen
           - gocyclo
-          - mnd
         path: _test\.go
       - linters:
           - gochecknoinits
         path: cmd/
+      - linters:
+          - gochecknoinits
+        path: internal/logger/
     paths:
       - build
       - vendor

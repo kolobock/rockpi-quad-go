@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/warthog618/go-gpiocdev"
+
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 	"github.com/kolobock/rockpi-quad-go/internal/logger"
-	"github.com/warthog618/go-gpiocdev"
 )
 
 // EventType represents the type of button event
@@ -39,7 +40,7 @@ func New(cfg *config.Config) (*Controller, error) {
 
 	if line == "" {
 		logger.Infoln("Button monitoring disabled - no pin configured")
-		return nil, fmt.Errorf("Button monitoring disabled - no pin configured")
+		return nil, fmt.Errorf("button monitoring disabled - no pin configured")
 	}
 
 	if chip == "" {
@@ -58,7 +59,7 @@ func New(cfg *config.Config) (*Controller, error) {
 	lineNum := 0
 	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
 		logger.Errorf("Invalid GPIO line number: %s", line)
-		return nil, fmt.Errorf("Invalid GPIO line number: %s", line)
+		return nil, fmt.Errorf("invalid GPIO line number: %s", line)
 	}
 
 	ctrl := &Controller{
@@ -84,7 +85,7 @@ func New(cfg *config.Config) (*Controller, error) {
 		gpiocdev.WithEventHandler(eventHandler))
 	if err != nil {
 		logger.Errorf("Failed to request button line: %v", err)
-		return nil, fmt.Errorf("Failed to request button line: %v", err)
+		return nil, fmt.Errorf("failed to request button line: %w", err)
 	}
 
 	ctrl.line = l
@@ -131,40 +132,46 @@ func (c *Controller) detectButtonEvent(ctx context.Context) EventType {
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventFallingEdge {
 				pressStart = time.Now()
-				goto waitForRelease
+				return c.handleButtonPress(ctx, pressStart)
 			}
 		case <-time.After(200 * time.Millisecond):
 			return ""
 		}
 	}
+}
 
-waitForRelease:
+func (c *Controller) handleButtonPress(ctx context.Context, pressStart time.Time) EventType {
 	for {
 		select {
 		case <-ctx.Done():
 			return ""
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventRisingEdge {
-				goto checkDoubleClick
+				return c.checkForDoubleClick(ctx)
 			}
 		case <-time.After(50 * time.Millisecond):
 			if time.Since(pressStart) >= c.pressTime {
-				for {
-					select {
-					case <-ctx.Done():
-						return LongPress
-					case evt := <-c.eventChan:
-						if evt.Type == gpiocdev.LineEventRisingEdge {
-							return LongPress
-						}
-					case <-time.After(50 * time.Millisecond):
-					}
-				}
+				return c.waitForLongPressRelease(ctx)
 			}
 		}
 	}
+}
 
-checkDoubleClick:
+func (c *Controller) waitForLongPressRelease(ctx context.Context) EventType {
+	for {
+		select {
+		case <-ctx.Done():
+			return LongPress
+		case evt := <-c.eventChan:
+			if evt.Type == gpiocdev.LineEventRisingEdge {
+				return LongPress
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+func (c *Controller) checkForDoubleClick(ctx context.Context) EventType {
 	deadline := time.Now().Add(c.twiceWindow)
 	for time.Now().Before(deadline) {
 		select {
@@ -172,25 +179,28 @@ checkDoubleClick:
 			return Click
 		case evt := <-c.eventChan:
 			if evt.Type == gpiocdev.LineEventFallingEdge {
-				for {
-					select {
-					case <-ctx.Done():
-						return DoubleClick
-					case evt := <-c.eventChan:
-						if evt.Type == gpiocdev.LineEventRisingEdge {
-							c.drainEventChannel()
-							return DoubleClick
-						}
-					case <-time.After(50 * time.Millisecond):
-					}
-				}
+				return c.waitForSecondClickRelease(ctx)
 			}
-		case <-time.After(deadline.Sub(time.Now())):
+		case <-time.After(time.Until(deadline)):
 			return Click
 		}
 	}
-
 	return Click
+}
+
+func (c *Controller) waitForSecondClickRelease(ctx context.Context) EventType {
+	for {
+		select {
+		case <-ctx.Done():
+			return DoubleClick
+		case evt := <-c.eventChan:
+			if evt.Type == gpiocdev.LineEventRisingEdge {
+				c.drainEventChannel()
+				return DoubleClick
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }
 
 // drainEventChannel clears any pending events from the event channel

@@ -10,8 +10,9 @@ import (
 
 	i2c "github.com/d2r2/go-i2c"
 	i2cl "github.com/d2r2/go-logger"
-	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"github.com/warthog618/go-gpiocdev"
+
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 )
 
 // SSD1306 command constants
@@ -56,7 +57,9 @@ type SSD1306 struct {
 
 // NewSSD1306 creates a new SSD1306 driver instance
 func NewSSD1306(width, height int) (*SSD1306, error) {
-	i2cl.ChangePackageLogLevel("i2c", i2cl.InfoLevel)
+	if err := i2cl.ChangePackageLogLevel("i2c", i2cl.InfoLevel); err != nil {
+		logger.Infof("Failed to change i2c log level: %v", err)
+	}
 
 	i2cBus, err := i2c.NewI2C(ssd1306I2CAddr, 1)
 	if err != nil {
@@ -130,14 +133,15 @@ func (d *SSD1306) init() error {
 		ssd1306SetDisplayClockDiv, 0x80,
 		ssd1306SetMultiplex, byte(d.height - 1),
 		ssd1306SetDisplayOffset, 0x00,
-		ssd1306SetStartLine | 0x00,
+		ssd1306SetStartLine,
 		ssd1306SegRemap | 0x01,
 		ssd1306ComScanDec,
 	}
 
-	if d.height == 32 {
+	switch d.height {
+	case 32:
 		cmds = append(cmds, ssd1306SetComPins, 0x02)
-	} else if d.height == 64 {
+	case 64:
 		cmds = append(cmds, ssd1306SetComPins, 0x12)
 	}
 
@@ -188,10 +192,10 @@ func (d *SSD1306) Display(img *image.Gray) error {
 		if err := d.writeCmd(0xB0 | byte(page)); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetLowColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetLowColumn); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetHighColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetHighColumn); err != nil {
 			return err
 		}
 
@@ -209,7 +213,7 @@ func (d *SSD1306) Display(img *image.Gray) error {
 
 // Clear clears the display (turns all pixels off)
 func (d *SSD1306) Clear() error {
-	for i := 0; i < len(d.buffer); i++ {
+	for i := range d.buffer {
 		d.buffer[i] = 0
 	}
 
@@ -220,10 +224,10 @@ func (d *SSD1306) Clear() error {
 		if err := d.writeCmd(0xB0 | byte(page)); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetLowColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetLowColumn); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetHighColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetHighColumn); err != nil {
 			return err
 		}
 		if _, err := d.i2c.WriteBytes(zeroPage); err != nil {
@@ -251,6 +255,8 @@ func (d *SSD1306) SetDisplayOn(on bool) error {
 
 // Close closes the I2C connection and turns off the display
 func (d *SSD1306) Close() error {
-	d.SetDisplayOn(false)
+	if err := d.SetDisplayOn(false); err != nil {
+		logger.Errorf("Failed to turn off display: %v", err)
+	}
 	return d.i2c.Close()
 }

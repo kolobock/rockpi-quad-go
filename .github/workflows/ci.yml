@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -18,6 +22,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: true
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -36,6 +41,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: true
 
       - name: Check formatting
         run: |
@@ -57,6 +63,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: true
 
       - name: Download dependencies
         run: go mod download
@@ -83,7 +90,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.goversion }}
-
+          cache: true
       - name: Build
         env:
           GOOS: linux
@@ -111,6 +118,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.goversion }}
+          cache: true
 
       - name: Run tests (non-hardware packages)
         run: go test -v -race -coverprofile=coverage-${{ matrix.goversion }}.txt -covermode=atomic ./pkg/... ./internal/config ./internal/logger
@@ -134,9 +142,6 @@ jobs:
   test-arm64:
     name: Test on ARM64
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        goversion: ['1.24', '1.25']
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -154,9 +159,10 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             --file .github/workflows/Dockerfile.test \
-            --build-arg GOVERSION=${{ matrix.goversion }} \
-            --tag rockpi-test-go-${{ matrix.goversion }}:arm64 \
+            --tag rockpi-test-go:arm64 \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
             --load \
             .
           
-          docker run --rm --platform linux/arm64 rockpi-test-go-${{ matrix.goversion }}:arm64
+          docker run --rm --platform linux/arm64 rockpi-test-go:arm64

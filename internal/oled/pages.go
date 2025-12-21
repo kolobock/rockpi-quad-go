@@ -11,6 +11,11 @@ import (
 	"github.com/kolobock/rockpi-quad-go/internal/disk"
 )
 
+const (
+	cpuTempNA = "CPU: N/A"
+	ipNA      = "IP: N/A"
+)
+
 // Page represents a displayable page
 type Page interface {
 	GetPageText() []TextItem
@@ -71,8 +76,9 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 		return items
 	}
 
-	items = append(items, TextItem{X: 0, Y: -2, Text: "Usage:", FontSize: 11})
-	items = append(items, TextItem{X: 64, Y: -2, Text: usage[0], FontSize: 11})
+	items = append(items,
+		TextItem{X: 0, Y: -2, Text: "Usage:", FontSize: 11},
+		TextItem{X: 64, Y: -2, Text: usage[0], FontSize: 11})
 
 	if len(usage) > 1 {
 		items = append(items, TextItem{X: 0, Y: 10, Text: usage[1], FontSize: 11})
@@ -167,13 +173,13 @@ func (c *Controller) getUptime() string {
 func (c *Controller) getCPUTemp() string {
 	data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp")
 	if err != nil {
-		return "CPU: N/A"
+		return cpuTempNA
 	}
 	temp, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
 	if err != nil {
-		return "CPU: N/A"
+		return cpuTempNA
 	}
-	temp = temp / 1000.0
+	temp /= 1000.0
 
 	if c.cfg.OLED.Fahrenheit {
 		return fmt.Sprintf("CPU: %.0f°F", temp*1.8+32)
@@ -184,13 +190,13 @@ func (c *Controller) getCPUTemp() string {
 func (c *Controller) getIPAddress() string {
 	out, err := exec.Command("hostname", "-I").Output()
 	if err != nil {
-		return "IP: N/A"
+		return ipNA
 	}
 	fields := strings.Fields(string(out))
 	if len(fields) > 0 {
 		return "IP: " + fields[0]
 	}
-	return "IP: N/A"
+	return ipNA
 }
 
 func (c *Controller) getCPULoad() string {
@@ -227,7 +233,7 @@ func stripDeviceName(device string) string {
 }
 
 func (c *Controller) getDiskUsage() []string {
-	var usage []string
+	usage := make([]string, 0, 1+len(c.cfg.Disk.SpaceUsageMountPoints))
 
 	out, err := exec.Command("sh", "-c", "df -h / | awk 'NR==2{print $5}'").Output()
 	if err == nil {
@@ -250,7 +256,7 @@ func (c *Controller) getDiskUsage() []string {
 		}
 	}
 
-	var diskNames []string
+	diskNames := make([]string, 0, len(diskMap))
 	for name := range diskMap {
 		diskNames = append(diskNames, name)
 	}
@@ -276,7 +282,7 @@ func (c *Controller) getNetworkInterfaces() (interfaces []string) {
 	}
 
 	var ifs = c.cfg.Network.Interfaces
-	if len(c.cfg.Network.Interfaces) <= 0 {
+	if len(c.cfg.Network.Interfaces) == 0 {
 		ifs = []string{"eth0", "wlan0", "enp0s3"}
 	}
 
@@ -307,7 +313,7 @@ func (c *Controller) updateNetworkStats() {
 	}
 }
 
-func (c *Controller) getNetworkRate(iface string) (float64, float64) {
+func (c *Controller) getNetworkRate(iface string) (rxRate, txRate float64) {
 	oldStats, exists := c.netStats[iface]
 	if !exists {
 		c.updateNetworkStats()
@@ -324,8 +330,8 @@ func (c *Controller) getNetworkRate(iface string) (float64, float64) {
 	now := time.Now()
 	elapsed := now.Sub(oldStats.timestamp).Seconds()
 
-	rxRate := float64(rx-oldStats.rxBytes) / elapsed / 1024 / 1024
-	txRate := float64(tx-oldStats.txBytes) / elapsed / 1024 / 1024
+	rxRate = float64(rx-oldStats.rxBytes) / elapsed / 1024 / 1024
+	txRate = float64(tx-oldStats.txBytes) / elapsed / 1024 / 1024
 
 	c.netStats[iface] = netIOStats{
 		rxBytes:   rx,
@@ -337,6 +343,7 @@ func (c *Controller) getNetworkRate(iface string) (float64, float64) {
 }
 
 func (c *Controller) getDiskNameFromMount(mount string) string {
+	// #nosec G204 - mount is a hardcoded path from config, not user input
 	out, err := exec.Command("sh", "-c", fmt.Sprintf("df %s | awk 'NR==2{print $1}'", mount)).Output()
 	if err != nil {
 		return ""
@@ -380,7 +387,7 @@ func (c *Controller) updateDiskStats() {
 	}
 }
 
-func (c *Controller) getDiskRate(diskName string) (float64, float64) {
+func (c *Controller) getDiskRate(diskName string) (readRate, writeRate float64) {
 	oldStats, exists := c.diskStats[diskName]
 	if !exists {
 		c.updateDiskStats()
@@ -404,8 +411,8 @@ func (c *Controller) getDiskRate(diskName string) (float64, float64) {
 	now := time.Now()
 	elapsed := now.Sub(oldStats.timestamp).Seconds()
 
-	readRate := float64(readSectors*512-oldStats.readBytes) / elapsed / 1024 / 1024
-	writeRate := float64(writeSectors*512-oldStats.writeBytes) / elapsed / 1024 / 1024
+	readRate = float64(readSectors*512-oldStats.readBytes) / elapsed / 1024 / 1024
+	writeRate = float64(writeSectors*512-oldStats.writeBytes) / elapsed / 1024 / 1024
 
 	c.diskStats[diskName] = diskIOStats{
 		readBytes:  readSectors * 512,
@@ -433,10 +440,11 @@ func (c *Controller) getDiskTemperatures() []string {
 }
 
 func (c *Controller) generatePages() []Page {
-	var pages []Page
+	pages := make([]Page, 0, 2+len(c.cfg.Disk.SpaceUsageMountPoints)+len(c.cfg.Network.Interfaces)+len(c.cfg.Disk.IOUsageMountPoints)+1)
 
-	pages = append(pages, &SystemInfoPage0{ctrl: c})
-	pages = append(pages, &SystemInfoPage1{ctrl: c})
+	pages = append(pages,
+		&SystemInfoPage0{ctrl: c},
+		&SystemInfoPage1{ctrl: c})
 
 	if len(c.cfg.Disk.SpaceUsageMountPoints) > 0 {
 		pages = append(pages, &DiskUsagePage{ctrl: c})

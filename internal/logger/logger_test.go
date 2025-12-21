@@ -67,7 +67,7 @@ func TestInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetVerbose(tt.verbose)
 			output := captureOutput(func() {
-				Info(tt.format, tt.args...)
+				Infof(tt.format, tt.args...)
 			})
 
 			if tt.wantLogs {
@@ -77,10 +77,8 @@ func TestInfo(t *testing.T) {
 				if !strings.Contains(output, "hello") {
 					t.Errorf("Info() output = %q, want to contain %q", output, "hello")
 				}
-			} else {
-				if output != "" {
-					t.Errorf("Info() produced output %q, expected no logs", output)
-				}
+			} else if output != "" {
+				t.Errorf("Info() produced output %q, expected no logs", output)
 			}
 		})
 	}
@@ -124,10 +122,8 @@ func TestInfof(t *testing.T) {
 				if !strings.Contains(output, "42") || !strings.Contains(output, "test") {
 					t.Errorf("Infof() output = %q, want to contain formatted message", output)
 				}
-			} else {
-				if output != "" {
-					t.Errorf("Infof() produced output %q, expected no logs", output)
-				}
+			} else if output != "" {
+				t.Errorf("Infof() produced output %q, expected no logs", output)
 			}
 		})
 	}
@@ -168,10 +164,8 @@ func TestInfoln(t *testing.T) {
 				if !strings.Contains(output, "test") {
 					t.Errorf("Infoln() output = %q, want to contain %q", output, "test")
 				}
-			} else {
-				if output != "" {
-					t.Errorf("Infoln() produced output %q, expected no logs", output)
-				}
+			} else if output != "" {
+				t.Errorf("Infoln() produced output %q, expected no logs", output)
 			}
 		})
 	}
@@ -201,7 +195,7 @@ func TestError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			output := captureOutput(func() {
-				Error(tt.format, tt.args...)
+				Errorf(tt.format, tt.args...)
 			})
 
 			if !strings.Contains(output, tt.want) {
@@ -252,7 +246,7 @@ func TestConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(i int) {
 			SetVerbose(i%2 == 0)
-			Info("test message %d", i)
+			Infof("test message %d", i)
 			done <- true
 		}(i)
 	}

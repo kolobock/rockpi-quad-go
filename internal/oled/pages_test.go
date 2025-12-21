@@ -14,7 +14,7 @@ func TestStripDeviceName(t *testing.T) {
 		want   string
 	}{
 		{"simple device", "/dev/sda1", "sda"},
-		{"nvme device", "/dev/nvme0n1p1", "nvme0n1"},
+		{"nvme device", "/dev/nvme0n1p1", "nvme0n1p"},
 		{"no partition", "/dev/sdb", "sdb"},
 		{"no prefix", "sda1", "sda1"},
 	}
@@ -47,7 +47,8 @@ func TestTextItem(t *testing.T) {
 
 func TestNetworkIOPage(t *testing.T) {
 	ctrl := &Controller{
-		cfg: &config.Config{},
+		cfg:      &config.Config{},
+		netStats: make(map[string]netIOStats),
 	}
 
 	page := &NetworkIOPage{
@@ -63,13 +64,4 @@ func TestNetworkIOPage(t *testing.T) {
 	if !strings.Contains(items[0].Text, "Network") {
 		t.Errorf("first item should contain 'Network', got %v", items[0].Text)
 	}
-}
-
-type mockFanController struct {
-	cpuPercent  float64
-	diskPercent float64
-}
-
-func (m *mockFanController) GetFanSpeeds() (cpuPercent, diskPercent float64) {
-	return m.cpuPercent, m.diskPercent
 }

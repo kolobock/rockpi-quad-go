@@ -27,8 +27,8 @@ func New(chip string, channel int) (*PWM, error) {
 	}
 
 	if _, err := os.Stat(p.basePath); os.IsNotExist(err) {
-		exportPath := filepath.Join("/sys/class/pwm", chip, "export")
-		if err := os.WriteFile(exportPath, []byte(strconv.Itoa(channel)), 0644); err != nil {
+		exportPath := "/sys/class/pwm/" + chip + "/export"
+		if err := os.WriteFile(exportPath, []byte(strconv.Itoa(channel)), 0600); err != nil {
 			if !strings.Contains(err.Error(), "device or resource busy") {
 				return nil, fmt.Errorf("failed to export PWM: %w", err)
 			}
@@ -52,7 +52,8 @@ func (p *PWM) SetInversed(inversed bool) {
 	if inversed {
 		polarity = "inversed"
 	}
-	p.writeSysfs("polarity", polarity)
+	_ = p.writeSysfs("polarity", polarity)
+	// Ignore error, as polarity may not be supported on all systems
 }
 
 func (p *PWM) SetDutyCycle(dutyCycle float64) error {
@@ -65,11 +66,13 @@ func (p *PWM) SetDutyCycle(dutyCycle float64) error {
 }
 
 func (p *PWM) Close() error {
-	p.SetDutyCycle(0)
+	if err := p.SetDutyCycle(0); err != nil {
+		return fmt.Errorf("failed to reset duty cycle: %w", err)
+	}
 	return nil
 }
 
 func (p *PWM) writeSysfs(filename, value string) error {
 	path := filepath.Join(p.basePath, filename)
-	return os.WriteFile(path, []byte(value), 0644)
+	return os.WriteFile(path, []byte(value), 0600)
 }

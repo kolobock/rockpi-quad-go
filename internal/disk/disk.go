@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kolobock/rockpi-quad-go/internal/logger"
 	"github.com/warthog618/go-gpiocdev"
+
+	"github.com/kolobock/rockpi-quad-go/internal/logger"
 )
 
 var (
@@ -65,6 +66,7 @@ func GetTemperature(device string) (float64, error) {
 		}
 	}
 
+	// #nosec G204 - device is validated to be a safe path earlier
 	cmd := exec.Command("sh", "-c", "smartctl -A "+device+" | egrep '^190' | awk '{print $10}'")
 	output, err := cmd.Output()
 	if err != nil {
@@ -79,8 +81,8 @@ func GetTemperature(device string) (float64, error) {
 			if strings.Contains(line, "Temperature_Celsius") || strings.Contains(line, "Airflow_Temperature_Cel") {
 				fields := strings.Fields(line)
 				if len(fields) >= 10 {
-					temp, err := strconv.ParseFloat(fields[9], 64)
-					if err == nil {
+					temp, parseErr := strconv.ParseFloat(fields[9], 64)
+					if parseErr == nil {
 						return temp, nil
 					}
 				}

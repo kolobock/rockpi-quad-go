@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	MinDutyCycle = 0.05
+	MinDutyCycle     = 0.05
+	polarityInversed = "inversed"
 )
 
 type Controller struct {
@@ -45,7 +46,7 @@ func New(cfg *config.Config) (*Controller, error) {
 	}
 	ctrl.cpuPWM = cpuPWM
 
-	if cfg.Fan.Polarity == "inversed" {
+	if cfg.Fan.Polarity == polarityInversed {
 		cpuPWM.SetInversed(true)
 	}
 
@@ -56,7 +57,7 @@ func New(cfg *config.Config) (*Controller, error) {
 			return nil, fmt.Errorf("failed to init disk PWM: %w", err)
 		}
 		ctrl.diskPWM = diskPWM
-		if cfg.Fan.Polarity == "inversed" {
+		if cfg.Fan.Polarity == polarityInversed {
 			diskPWM.SetInversed(true)
 		}
 	}
@@ -75,17 +76,21 @@ func (c *Controller) ToggleFan() {
 		logger.Infoln("Fan control enabled - temperature-based control resumed")
 	} else {
 		fullSpeed := 100.0
-		if c.cfg.Fan.Polarity == "inversed" {
+		if c.cfg.Fan.Polarity == polarityInversed {
 			fullSpeed = 0.0
 		}
 
 		logger.Infof("Fan control disabled - setting fans to full speed (DC: %.0f%%)", fullSpeed)
 		if c.cpuPWM != nil {
-			c.cpuPWM.SetDutyCycle(fullSpeed)
+			if err := c.cpuPWM.SetDutyCycle(fullSpeed); err != nil {
+				logger.Errorf("Failed to set CPU fan duty cycle: %v", err)
+			}
 			c.lastCPUDC = fullSpeed
 		}
 		if c.diskPWM != nil {
-			c.diskPWM.SetDutyCycle(fullSpeed)
+			if err := c.diskPWM.SetDutyCycle(fullSpeed); err != nil {
+				logger.Errorf("Failed to set disk fan duty cycle: %v", err)
+			}
 			c.lastDiskDC = fullSpeed
 		}
 	}
@@ -143,16 +148,17 @@ func (c *Controller) update() error {
 		}
 	}
 
+	fansRunning := c.enabled && (cpuDC > 0 || diskDC > 0)
 	logger.Infof("cpu_temp: %.2f, cpu_dc: %.2f, disk_temp: %.2f, disk_dc: %.2f, run: %t",
-		cpuTemp, cpuDC*100, diskTemp, diskDC*100, c.enabled)
+		cpuTemp, cpuDC*100, diskTemp, diskDC*100, fansRunning)
 
 	return nil
 }
 
-func (c *Controller) getTemperatures() (cpu, disk float64) {
+func (c *Controller) getTemperatures() (cpuTemp, diskTemp float64) {
 	if data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp"); err == nil {
 		if temp, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64); err == nil {
-			cpu = temp / 1000.0
+			cpuTemp = temp / 1000.0
 		}
 	}
 
@@ -160,9 +166,9 @@ func (c *Controller) getTemperatures() (cpu, disk float64) {
 		c.lastDiskTemp = c.getMaxDiskTemp()
 		c.lastTemp = time.Now()
 	}
-	disk = c.lastDiskTemp
+	diskTemp = c.lastDiskTemp
 
-	return cpu, disk
+	return cpuTemp, diskTemp
 }
 
 func (c *Controller) getMaxDiskTemp() float64 {
@@ -239,11 +245,15 @@ func (c *Controller) GetFanSpeeds() (cpuPercent, diskPercent float64) {
 
 func (c *Controller) Close() error {
 	if c.cpuPWM != nil {
-		c.cpuPWM.SetDutyCycle(0)
+		if err := c.cpuPWM.SetDutyCycle(0); err != nil {
+			logger.Errorf("Failed to reset CPU PWM duty cycle: %v", err)
+		}
 		c.cpuPWM.Close()
 	}
 	if c.diskPWM != nil {
-		c.diskPWM.SetDutyCycle(0)
+		if err := c.diskPWM.SetDutyCycle(0); err != nil {
+			logger.Errorf("Failed to reset disk PWM duty cycle: %v", err)
+		}
 		c.diskPWM.Close()
 	}
 	return nil

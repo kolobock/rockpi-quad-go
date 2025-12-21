@@ -38,7 +38,7 @@ press = 1.8
 
 	tmpDir := t.TempDir()
 	configFile := filepath.Join(tmpDir, "test.conf")
-	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configFile, []byte(configContent), 0600); err != nil {
 		t.Fatalf("failed to create test config: %v", err)
 	}
 
@@ -69,7 +69,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	configFile := filepath.Join(tmpDir, "test_defaults.conf")
-	if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configFile, []byte(configContent), 0600); err != nil {
 		t.Fatalf("failed to create test config: %v", err)
 	}
 
