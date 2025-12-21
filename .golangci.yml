@@ -73,6 +73,9 @@ linters:
       - linters:
           - gochecknoinits
         path: cmd/
+      - linters:
+          - gochecknoinits
+        path: internal/logger/
     paths:
       - build
       - vendor
