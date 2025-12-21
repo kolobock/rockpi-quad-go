@@ -67,7 +67,7 @@ func TestInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetVerbose(tt.verbose)
 			output := captureOutput(func() {
-				Info(tt.format, tt.args...)
+				Infof(tt.format, tt.args...)
 			})
 
 			if tt.wantLogs {
@@ -201,7 +201,7 @@ func TestError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			output := captureOutput(func() {
-				Error(tt.format, tt.args...)
+				Errorf(tt.format, tt.args...)
 			})
 
 			if !strings.Contains(output, tt.want) {
@@ -252,7 +252,7 @@ func TestConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(i int) {
 			SetVerbose(i%2 == 0)
-			Info("test message %d", i)
+			Infof("test message %d", i)
 			done <- true
 		}(i)
 	}
