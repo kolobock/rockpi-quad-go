@@ -233,7 +233,7 @@ func stripDeviceName(device string) string {
 }
 
 func (c *Controller) getDiskUsage() []string {
-	var usage []string
+	usage := make([]string, 0, 1+len(c.cfg.Disk.SpaceUsageMountPoints))
 
 	out, err := exec.Command("sh", "-c", "df -h / | awk 'NR==2{print $5}'").Output()
 	if err == nil {
@@ -256,7 +256,7 @@ func (c *Controller) getDiskUsage() []string {
 		}
 	}
 
-	var diskNames []string
+	diskNames := make([]string, 0, len(diskMap))
 	for name := range diskMap {
 		diskNames = append(diskNames, name)
 	}
@@ -440,7 +440,7 @@ func (c *Controller) getDiskTemperatures() []string {
 }
 
 func (c *Controller) generatePages() []Page {
-	var pages []Page
+	pages := make([]Page, 0, 2+len(c.cfg.Disk.SpaceUsageMountPoints)+len(c.cfg.Network.Interfaces)+len(c.cfg.Disk.IOUsageMountPoints)+1)
 
 	pages = append(pages,
 		&SystemInfoPage0{ctrl: c},
