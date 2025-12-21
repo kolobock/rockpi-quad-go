@@ -65,12 +65,3 @@ func TestNetworkIOPage(t *testing.T) {
 		t.Errorf("first item should contain 'Network', got %v", items[0].Text)
 	}
 }
-
-type mockFanController struct {
-	cpuPercent  float64
-	diskPercent float64
-}
-
-func (m *mockFanController) GetFanSpeeds() (cpuPercent, diskPercent float64) {
-	return m.cpuPercent, m.diskPercent
-}

@@ -27,18 +27,16 @@ type FanController interface {
 }
 
 type Controller struct {
-	cfg         *config.Config
-	dev         *SSD1306
-	img         *image.Gray
-	mu          sync.Mutex
-	pageIndex   int
-	pages       []Page
-	lastIOTime  time.Time
-	lastNetTime time.Time
-	netStats    map[string]netIOStats
-	diskStats   map[string]diskIOStats
-	fonts       map[int]font.Face
-	fanCtrl     FanController
+	cfg       *config.Config
+	dev       *SSD1306
+	img       *image.Gray
+	mu        sync.Mutex
+	pageIndex int
+	pages     []Page
+	netStats  map[string]netIOStats
+	diskStats map[string]diskIOStats
+	fonts     map[int]font.Face
+	fanCtrl   FanController
 
 	timer         *time.Ticker
 	timerDuration time.Duration
