@@ -89,14 +89,7 @@ func executeCustomCommand(action string) {
 }
 
 func main() {
-	cfg, err := config.Load("/etc/rockpi-quad.conf")
-	if err != nil {
-		logger.Fatalf("Failed to load config: %v", err)
-	}
-
-	logger.SetVerbose(cfg.Fan.Syslog)
-
-	disk.EnableSATAController(cfg.Env.SATAChip, cfg.Env.SATALine1, cfg.Env.SATALine2)
+	cfg := loadConfigAndSetup()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -106,11 +99,37 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	fanCtrl := startFanController(ctx, &wg, cfg)
+	defer fanCtrl.Close()
+
+	if cfg.OLED.Enabled {
+		startOLEDAndButton(ctx, &wg, cfg, fanCtrl, cancel)
+	}
+
+	<-sigCh
+	logger.Infoln("Shutting down...")
+	cancel()
+
+	waitForShutdown(&wg)
+}
+
+func loadConfigAndSetup() *config.Config {
+	cfg, err := config.Load("/etc/rockpi-quad.conf")
+	if err != nil {
+		logger.Fatalf("Failed to load config: %v", err)
+	}
+
+	logger.SetVerbose(cfg.Fan.Syslog)
+	disk.EnableSATAController(cfg.Env.SATAChip, cfg.Env.SATALine1, cfg.Env.SATALine2)
+
+	return cfg
+}
+
+func startFanController(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config) *fan.Controller {
 	fanCtrl, err := fan.New(cfg)
 	if err != nil {
 		logger.Fatalf("Failed to create fan controller: %v", err)
 	}
-	defer fanCtrl.Close()
 
 	wg.Add(1)
 	go func() {
@@ -120,45 +139,44 @@ func main() {
 		}
 	}()
 
-	if cfg.OLED.Enabled {
-		buttonCtrl, err := button.New(cfg)
-		if err != nil {
-			logger.Errorf("Failed to create button controller: %v", err)
-			goto oled
-		}
-		defer buttonCtrl.Close()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			buttonCtrl.Run(ctx)
-		}()
+	return fanCtrl
+}
 
-	oled:
-		oledCtrl, err := oled.New(cfg, fanCtrl)
-		if err != nil {
-			logger.Errorf("Failed to create OLED controller: %v", err)
-			goto sigChannel
-		}
-		defer oledCtrl.Close()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			buttonChan := make(chan struct{}, 10)
-
-			if buttonCtrl != nil {
-				go handleButtonEvents(ctx, cfg, buttonCtrl, fanCtrl, oledCtrl, buttonChan, cancel)
-			}
-			if err := oledCtrl.Run(ctx, buttonChan); err != nil {
-				logger.Errorf("OLED controller error: %v", err)
-			}
-		}()
+func startOLEDAndButton(ctx context.Context, wg *sync.WaitGroup, cfg *config.Config, fanCtrl *fan.Controller, cancel context.CancelFunc) {
+	buttonCtrl, err := button.New(cfg)
+	if err != nil {
+		logger.Errorf("Failed to create button controller: %v", err)
+		goto oled
 	}
+	defer buttonCtrl.Close()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		buttonCtrl.Run(ctx)
+	}()
 
-sigChannel:
-	<-sigCh
-	logger.Infoln("Shutting down...")
-	cancel()
+oled:
+	oledCtrl, err := oled.New(cfg, fanCtrl)
+	if err != nil {
+		logger.Errorf("Failed to create OLED controller: %v", err)
+		return
+	}
+	defer oledCtrl.Close()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		buttonChan := make(chan struct{}, 10)
 
+		if buttonCtrl != nil {
+			go handleButtonEvents(ctx, cfg, buttonCtrl, fanCtrl, oledCtrl, buttonChan, cancel)
+		}
+		if err := oledCtrl.Run(ctx, buttonChan); err != nil {
+			logger.Errorf("OLED controller error: %v", err)
+		}
+	}()
+}
+
+func waitForShutdown(wg *sync.WaitGroup) {
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()

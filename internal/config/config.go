@@ -88,6 +88,25 @@ type TimeConfig struct {
 func Load(path string) (*Config, error) {
 	cfg := &Config{}
 
+	loadEnvConfig(cfg)
+
+	iniFile, err := ini.Load(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config file: %w", err)
+	}
+
+	loadFanConfig(cfg, iniFile)
+	loadOLEDConfig(cfg, iniFile)
+	loadDiskConfig(cfg, iniFile)
+	loadNetworkConfig(cfg, iniFile)
+	loadKeyConfig(cfg, iniFile)
+	loadTimeConfig(cfg, iniFile)
+	loadSliderConfig(cfg, iniFile)
+
+	return cfg, nil
+}
+
+func loadEnvConfig(cfg *Config) {
 	cfg.Env.SDA = os.Getenv("SDA")
 	cfg.Env.SCL = os.Getenv("SCL")
 	cfg.Env.OLEDReset = os.Getenv("OLED_RESET")
@@ -99,12 +118,9 @@ func Load(path string) (*Config, error) {
 	cfg.Env.SATAChip = os.Getenv("SATA_CHIP")
 	cfg.Env.SATALine1 = os.Getenv("SATA_LINE_1")
 	cfg.Env.SATALine2 = os.Getenv("SATA_LINE_2")
+}
 
-	iniFile, err := ini.Load(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config file: %w", err)
-	}
-
+func loadFanConfig(cfg *Config, iniFile *ini.File) {
 	fanSec := iniFile.Section("fan")
 	cfg.Fan.LV0 = fanSec.Key("lv0").MustFloat64(35)
 	cfg.Fan.LV1 = fanSec.Key("lv1").MustFloat64(40)
@@ -140,12 +156,16 @@ func Load(path string) (*Config, error) {
 	}
 	cfg.Fan.TBPWMChip = cfg.Fan.CPUPWMChip
 	cfg.Fan.Polarity = os.Getenv("POLARITY")
+}
 
+func loadOLEDConfig(cfg *Config, iniFile *ini.File) {
 	oledSec := iniFile.Section("oled")
 	cfg.OLED.Enabled = true
 	cfg.OLED.Rotate = oledSec.Key("rotate").MustBool(false)
 	cfg.OLED.Fahrenheit = oledSec.Key("f-temp").MustBool(false)
+}
 
+func loadDiskConfig(cfg *Config, iniFile *ini.File) {
 	diskSec := iniFile.Section("disk")
 	if mountPoints := diskSec.Key("space_usage_mnt_points").String(); mountPoints != "" {
 		cfg.Disk.SpaceUsageMountPoints = strings.Split(mountPoints, "|")
@@ -154,25 +174,31 @@ func Load(path string) (*Config, error) {
 		cfg.Disk.IOUsageMountPoints = strings.Split(ioPoints, "|")
 	}
 	cfg.Disk.DisksTemperature = diskSec.Key("disks_temp").MustBool(false)
+}
 
+func loadNetworkConfig(cfg *Config, iniFile *ini.File) {
 	netSec := iniFile.Section("network")
 	if interfaces := netSec.Key("interfaces").String(); interfaces != "" {
 		cfg.Network.Interfaces = strings.Split(interfaces, ",")
 	}
 	cfg.Network.SkipPage = netSec.Key("skip_page").MustBool(false)
+}
 
+func loadKeyConfig(cfg *Config, iniFile *ini.File) {
 	keySec := iniFile.Section("key")
 	cfg.Key.Click = keySec.Key("click").MustString("slider")
 	cfg.Key.Twice = keySec.Key("twice").MustString("switch")
 	cfg.Key.Press = keySec.Key("press").MustString("poweroff")
+}
 
+func loadTimeConfig(cfg *Config, iniFile *ini.File) {
 	timeSec := iniFile.Section("time")
 	cfg.Time.Twice = timeSec.Key("twice").MustFloat64(0.7)
 	cfg.Time.Press = timeSec.Key("press").MustFloat64(1.8)
+}
 
+func loadSliderConfig(cfg *Config, iniFile *ini.File) {
 	sliderSec := iniFile.Section("slider")
 	cfg.Slider.Auto = sliderSec.Key("auto").MustBool(true)
 	cfg.Slider.Time = sliderSec.Key("time").MustInt(5)
-
-	return cfg, nil
 }
