@@ -52,9 +52,8 @@ func (p *PWM) SetInversed(inversed bool) {
 	if inversed {
 		polarity = "inversed"
 	}
-	if err := p.writeSysfs("polarity", polarity); err != nil {
-		// Log but don't fail, as this may not be supported on all systems
-	}
+	_ = p.writeSysfs("polarity", polarity)
+	// Ignore error, as polarity may not be supported on all systems
 }
 
 func (p *PWM) SetDutyCycle(dutyCycle float64) error {

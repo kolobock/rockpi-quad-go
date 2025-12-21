@@ -132,14 +132,15 @@ func (d *SSD1306) init() error {
 		ssd1306SetDisplayClockDiv, 0x80,
 		ssd1306SetMultiplex, byte(d.height - 1),
 		ssd1306SetDisplayOffset, 0x00,
-		ssd1306SetStartLine | 0x00,
+		ssd1306SetStartLine,
 		ssd1306SegRemap | 0x01,
 		ssd1306ComScanDec,
 	}
 
-	if d.height == 32 {
+	switch d.height {
+	case 32:
 		cmds = append(cmds, ssd1306SetComPins, 0x02)
-	} else if d.height == 64 {
+	case 64:
 		cmds = append(cmds, ssd1306SetComPins, 0x12)
 	}
 
@@ -190,10 +191,10 @@ func (d *SSD1306) Display(img *image.Gray) error {
 		if err := d.writeCmd(0xB0 | byte(page)); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetLowColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetLowColumn); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetHighColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetHighColumn); err != nil {
 			return err
 		}
 
@@ -222,10 +223,10 @@ func (d *SSD1306) Clear() error {
 		if err := d.writeCmd(0xB0 | byte(page)); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetLowColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetLowColumn); err != nil {
 			return err
 		}
-		if err := d.writeCmd(ssd1306SetHighColumn | 0x00); err != nil {
+		if err := d.writeCmd(ssd1306SetHighColumn); err != nil {
 			return err
 		}
 		if _, err := d.i2c.WriteBytes(zeroPage); err != nil {

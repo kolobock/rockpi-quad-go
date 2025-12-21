@@ -39,7 +39,7 @@ func New(cfg *config.Config) (*Controller, error) {
 
 	if line == "" {
 		logger.Infoln("Button monitoring disabled - no pin configured")
-		return nil, fmt.Errorf("Button monitoring disabled - no pin configured")
+		return nil, fmt.Errorf("button monitoring disabled - no pin configured")
 	}
 
 	if chip == "" {
@@ -58,7 +58,7 @@ func New(cfg *config.Config) (*Controller, error) {
 	lineNum := 0
 	if _, err := fmt.Sscanf(line, "%d", &lineNum); err != nil {
 		logger.Errorf("Invalid GPIO line number: %s", line)
-		return nil, fmt.Errorf("Invalid GPIO line number: %s", line)
+		return nil, fmt.Errorf("invalid GPIO line number: %s", line)
 	}
 
 	ctrl := &Controller{
@@ -84,7 +84,7 @@ func New(cfg *config.Config) (*Controller, error) {
 		gpiocdev.WithEventHandler(eventHandler))
 	if err != nil {
 		logger.Errorf("Failed to request button line: %v", err)
-		return nil, fmt.Errorf("Failed to request button line: %v", err)
+		return nil, fmt.Errorf("failed to request button line: %w", err)
 	}
 
 	ctrl.line = l
@@ -185,7 +185,7 @@ checkDoubleClick:
 					}
 				}
 			}
-		case <-time.After(deadline.Sub(time.Now())):
+		case <-time.After(time.Until(deadline)):
 			return Click
 		}
 	}
