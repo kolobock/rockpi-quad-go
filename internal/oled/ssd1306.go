@@ -211,7 +211,7 @@ func (d *SSD1306) Display(img *image.Gray) error {
 
 // Clear clears the display (turns all pixels off)
 func (d *SSD1306) Clear() error {
-	for i := 0; i < len(d.buffer); i++ {
+	for i := range d.buffer {
 		d.buffer[i] = 0
 	}
 

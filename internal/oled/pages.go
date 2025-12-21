@@ -71,8 +71,9 @@ func (p *DiskUsagePage) GetPageText() []TextItem {
 		return items
 	}
 
-	items = append(items, TextItem{X: 0, Y: -2, Text: "Usage:", FontSize: 11})
-	items = append(items, TextItem{X: 64, Y: -2, Text: usage[0], FontSize: 11})
+	items = append(items,
+		TextItem{X: 0, Y: -2, Text: "Usage:", FontSize: 11},
+		TextItem{X: 64, Y: -2, Text: usage[0], FontSize: 11})
 
 	if len(usage) > 1 {
 		items = append(items, TextItem{X: 0, Y: 10, Text: usage[1], FontSize: 11})
@@ -173,7 +174,7 @@ func (c *Controller) getCPUTemp() string {
 	if err != nil {
 		return "CPU: N/A"
 	}
-	temp = temp / 1000.0
+	temp /= 1000.0
 
 	if c.cfg.OLED.Fahrenheit {
 		return fmt.Sprintf("CPU: %.0f°F", temp*1.8+32)
@@ -276,7 +277,7 @@ func (c *Controller) getNetworkInterfaces() (interfaces []string) {
 	}
 
 	var ifs = c.cfg.Network.Interfaces
-	if len(c.cfg.Network.Interfaces) <= 0 {
+	if len(c.cfg.Network.Interfaces) == 0 {
 		ifs = []string{"eth0", "wlan0", "enp0s3"}
 	}
 
@@ -307,7 +308,7 @@ func (c *Controller) updateNetworkStats() {
 	}
 }
 
-func (c *Controller) getNetworkRate(iface string) (float64, float64) {
+func (c *Controller) getNetworkRate(iface string) (rxRate, txRate float64) {
 	oldStats, exists := c.netStats[iface]
 	if !exists {
 		c.updateNetworkStats()
@@ -324,8 +325,8 @@ func (c *Controller) getNetworkRate(iface string) (float64, float64) {
 	now := time.Now()
 	elapsed := now.Sub(oldStats.timestamp).Seconds()
 
-	rxRate := float64(rx-oldStats.rxBytes) / elapsed / 1024 / 1024
-	txRate := float64(tx-oldStats.txBytes) / elapsed / 1024 / 1024
+	rxRate = float64(rx-oldStats.rxBytes) / elapsed / 1024 / 1024
+	txRate = float64(tx-oldStats.txBytes) / elapsed / 1024 / 1024
 
 	c.netStats[iface] = netIOStats{
 		rxBytes:   rx,
@@ -380,7 +381,7 @@ func (c *Controller) updateDiskStats() {
 	}
 }
 
-func (c *Controller) getDiskRate(diskName string) (float64, float64) {
+func (c *Controller) getDiskRate(diskName string) (readRate, writeRate float64) {
 	oldStats, exists := c.diskStats[diskName]
 	if !exists {
 		c.updateDiskStats()
@@ -404,8 +405,8 @@ func (c *Controller) getDiskRate(diskName string) (float64, float64) {
 	now := time.Now()
 	elapsed := now.Sub(oldStats.timestamp).Seconds()
 
-	readRate := float64(readSectors*512-oldStats.readBytes) / elapsed / 1024 / 1024
-	writeRate := float64(writeSectors*512-oldStats.writeBytes) / elapsed / 1024 / 1024
+	readRate = float64(readSectors*512-oldStats.readBytes) / elapsed / 1024 / 1024
+	writeRate = float64(writeSectors*512-oldStats.writeBytes) / elapsed / 1024 / 1024
 
 	c.diskStats[diskName] = diskIOStats{
 		readBytes:  readSectors * 512,
@@ -435,8 +436,9 @@ func (c *Controller) getDiskTemperatures() []string {
 func (c *Controller) generatePages() []Page {
 	var pages []Page
 
-	pages = append(pages, &SystemInfoPage0{ctrl: c})
-	pages = append(pages, &SystemInfoPage1{ctrl: c})
+	pages = append(pages,
+		&SystemInfoPage0{ctrl: c},
+		&SystemInfoPage1{ctrl: c})
 
 	if len(c.cfg.Disk.SpaceUsageMountPoints) > 0 {
 		pages = append(pages, &DiskUsagePage{ctrl: c})

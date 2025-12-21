@@ -153,10 +153,10 @@ func (c *Controller) update() error {
 	return nil
 }
 
-func (c *Controller) getTemperatures() (cpu, disk float64) {
+func (c *Controller) getTemperatures() (cpuTemp, diskTemp float64) {
 	if data, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp"); err == nil {
 		if temp, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64); err == nil {
-			cpu = temp / 1000.0
+			cpuTemp = temp / 1000.0
 		}
 	}
 
@@ -164,9 +164,9 @@ func (c *Controller) getTemperatures() (cpu, disk float64) {
 		c.lastDiskTemp = c.getMaxDiskTemp()
 		c.lastTemp = time.Now()
 	}
-	disk = c.lastDiskTemp
+	diskTemp = c.lastDiskTemp
 
-	return cpu, disk
+	return cpuTemp, diskTemp
 }
 
 func (c *Controller) getMaxDiskTemp() float64 {
