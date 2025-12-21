@@ -199,8 +199,10 @@ rockpi-quad-go/
 │   │   ├── oled.go           # Display controller
 │   │   ├── pages.go          # Page definitions and data
 │   │   └── ssd1306.go        # SSD1306 I2C driver
-│   └── disk/                 # Disk temperature monitoring
-│       └── disk.go
+│   ├── disk/                 # Disk temperature monitoring
+│   │   └── disk.go
+│   └── logger/               # Logging utilities
+│       └── logger.go
 ├── pkg/
 │   └── pwm/                  # PWM hardware interface
 │       └── pwm.go
