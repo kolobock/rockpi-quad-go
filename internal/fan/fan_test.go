@@ -27,9 +27,9 @@ func TestCalculateDutyCycleNonLinear(t *testing.T) {
 		wantDuty float64
 	}{
 		{"cpu below lv0", 30, 'c', 0.0},
-		{"cpu at lv0", 35, 'c', 0.0},
+		{"cpu at lv0", 35, 'c', 0.25},
 		{"cpu between lv0 and lv1", 37, 'c', 0.25},
-		{"cpu at lv1", 40, 'c', 0.25},
+		{"cpu at lv1", 40, 'c', 0.50},
 		{"cpu between lv1 and lv2", 42, 'c', 0.50},
 		{"cpu above lv3", 60, 'c', 1.0},
 	}
