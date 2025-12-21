@@ -27,9 +27,16 @@ type FanController interface {
 	GetFanSpeeds() (cpuPercent, diskPercent float64)
 }
 
+// Display interface for OLED display devices
+type Display interface {
+	Display(img *image.Gray) error
+	Clear() error
+	Close() error
+}
+
 type Controller struct {
 	cfg       *config.Config
-	dev       *SSD1306
+	dev       Display
 	img       *image.Gray
 	mu        sync.Mutex
 	pageIndex int

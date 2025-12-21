@@ -161,10 +161,10 @@ oled:
 		logger.Errorf("Failed to create OLED controller: %v", err)
 		return
 	}
-	defer oledCtrl.Close()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer oledCtrl.Close()
 		buttonChan := make(chan struct{}, 10)
 
 		if buttonCtrl != nil {
