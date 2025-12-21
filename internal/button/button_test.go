@@ -1,6 +1,7 @@
 package button
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -80,5 +81,104 @@ func TestPressChan(t *testing.T) {
 		}
 	case <-time.After(100 * time.Millisecond):
 		t.Error("timeout waiting for event")
+	}
+}
+func TestRunWithContextCancellation(t *testing.T) {
+	// This test verifies that the controller's Run method properly handles
+	// context cancellation and that the pressChan remains open and functional
+	// for the duration of Run - regression test for defer Close() being
+	// called too early which closed GPIO resources prematurely
+
+	ctrl := &Controller{
+		pressChan:   make(chan EventType, 10),
+		eventChan:   nil, // No GPIO events in unit test
+		twiceWindow: 700 * time.Millisecond,
+		pressTime:   1800 * time.Millisecond,
+		line:        nil, // No actual GPIO line for unit test
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start Run in a goroutine (simulating actual usage)
+	runComplete := make(chan struct{})
+	go func() {
+		defer close(runComplete)
+		ctrl.Run(ctx)
+	}()
+
+	// Verify pressChan is still open and accessible
+	select {
+	case <-ctrl.PressChan():
+		// Expected to block since no events sent yet
+		t.Error("pressChan should block when no events")
+	case <-time.After(50 * time.Millisecond):
+		// Expected path - channel is open but has no data
+	}
+
+	// Cancel context
+	cancel()
+
+	// Wait for Run to complete
+	select {
+	case <-runComplete:
+		// Expected - Run should exit when context is canceled
+	case <-time.After(500 * time.Millisecond):
+		t.Error("Run did not exit after context cancellation")
+	}
+
+	// Verify pressChan is still usable after Run exits
+	// (it shouldn't be closed, just no longer receiving events)
+	select {
+	case <-ctrl.PressChan():
+		// Should still block since no events
+		t.Error("pressChan should still block after Run exits")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - channel is still open
+	}
+}
+
+func TestControllerLifecycle(t *testing.T) {
+	// Test the complete lifecycle: create, run, cancel context, close
+	// This simulates the actual usage pattern in main.go
+
+	ctrl := &Controller{
+		pressChan:   make(chan EventType, 10),
+		eventChan:   nil, // No GPIO events in unit test
+		twiceWindow: 700 * time.Millisecond,
+		pressTime:   1800 * time.Millisecond,
+		line:        nil, // No actual GPIO line for unit test
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start Run in a goroutine with deferred Close (like in main.go)
+	runComplete := make(chan struct{})
+	go func() {
+		defer close(runComplete)
+		defer func() {
+			if err := ctrl.Close(); err != nil {
+				t.Errorf("Close() error: %v", err)
+			}
+		}()
+		ctrl.Run(ctx)
+	}()
+
+	// Give it time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify channel is operational
+	ch := ctrl.PressChan()
+	if ch == nil {
+		t.Error("PressChan returned nil during Run")
+	}
+
+	// Cancel and wait for completion
+	cancel()
+
+	select {
+	case <-runComplete:
+		// Expected - goroutine completed with deferred Close
+	case <-time.After(500 * time.Millisecond):
+		t.Error("Goroutine did not complete after context cancellation")
 	}
 }

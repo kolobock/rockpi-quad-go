@@ -29,7 +29,11 @@ func handleButtonEvents(ctx context.Context, cfg *config.Config, buttonCtrl *but
 		select {
 		case <-ctx.Done():
 			return
-		case event := <-buttonCtrl.PressChan():
+		case event, ok := <-buttonCtrl.PressChan():
+			if !ok {
+				// Channel closed, exit
+				return
+			}
 			action := getButtonAction(cfg, event)
 			logger.Infof("Button event: %s (action: %s)", event, action)
 			oledCtrl.NotifyBtnPress()
@@ -148,10 +152,10 @@ func startOLEDAndButton(ctx context.Context, wg *sync.WaitGroup, cfg *config.Con
 		logger.Errorf("Failed to create button controller: %v", err)
 		goto oled
 	}
-	defer buttonCtrl.Close()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer buttonCtrl.Close()
 		buttonCtrl.Run(ctx)
 	}()
 
