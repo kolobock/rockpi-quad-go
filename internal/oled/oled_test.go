@@ -9,9 +9,41 @@ import (
 	"time"
 
 	"golang.org/x/image/font"
+	"golang.org/x/image/math/fixed"
 
 	"github.com/kolobock/rockpi-quad-go/internal/config"
 )
+
+// mockFontFace is a simple mock implementation of font.Face for testing
+type mockFontFace struct{}
+
+func (m *mockFontFace) Close() error {
+	return nil
+}
+
+func (m *mockFontFace) Glyph(dot fixed.Point26_6, r rune) (dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
+	return image.Rectangle{}, nil, image.Point{}, fixed.I(8), true
+}
+
+func (m *mockFontFace) GlyphBounds(r rune) (bounds fixed.Rectangle26_6, advance fixed.Int26_6, ok bool) {
+	return fixed.R(0, -10, 8, 2), fixed.I(8), true
+}
+
+func (m *mockFontFace) GlyphAdvance(r rune) (advance fixed.Int26_6, ok bool) {
+	return fixed.I(8), true
+}
+
+func (m *mockFontFace) Kern(r0, r1 rune) fixed.Int26_6 {
+	return 0
+}
+
+func (m *mockFontFace) Metrics() font.Metrics {
+	return font.Metrics{
+		Height:  fixed.I(12),
+		Ascent:  fixed.I(10),
+		Descent: fixed.I(2),
+	}
+}
 
 func TestClearImage(t *testing.T) {
 	ctrl := &Controller{
@@ -93,11 +125,16 @@ func TestControllerContextCancellation(t *testing.T) {
 				SkipPage:   true,
 			},
 		},
-		dev:           mockDev,
-		img:           image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
-		netStats:      make(map[string]netIOStats),
-		diskStats:     make(map[string]diskIOStats),
-		fonts:         make(map[int]font.Face),
+		dev:       mockDev,
+		img:       image.NewGray(image.Rect(0, 0, displayWidth, displayHeight)),
+		netStats:  make(map[string]netIOStats),
+		diskStats: make(map[string]diskIOStats),
+		fonts: map[int]font.Face{
+			10: &mockFontFace{},
+			11: &mockFontFace{},
+			12: &mockFontFace{},
+			14: &mockFontFace{},
+		},
 		timerDuration: 100 * time.Millisecond,
 	}
 
