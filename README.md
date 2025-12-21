@@ -213,14 +213,19 @@ rockpi-quad-go/
 ### Setup Development Environment
 
 ```bash
-# Setup git hooks and install dependencies
-./.github/setup-dev.sh
-```
+# Install dependencies
+go mod download
 
-This will:
-- Install pre-commit hooks for local validation
-- Download Go dependencies
-- Check for required tools (golangci-lint)
+# Install pre-commit hook
+ln -sf ../../.github/hooks/pre-commit.sh .git/hooks/pre-commit
+
+# Install golangci-lint (if not already installed)
+# macOS:
+brew install golangci-lint
+
+# Linux:
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+```
 
 ### Testing
 
@@ -267,7 +272,7 @@ The project uses GitHub Actions for continuous integration:
 - ✅ **Tests**: Unit tests with coverage reporting
 - ✅ **ARM64 Tests**: Docker-based ARM64 emulation with QEMU
 
-See [.github/CI.md](.github/CI.md) for detailed CI/CD documentation.
+See [.github/workflows/ci.yml](.github/workflows/ci.yml) for the CI configuration.
 
 #### Running Checks Locally
 
