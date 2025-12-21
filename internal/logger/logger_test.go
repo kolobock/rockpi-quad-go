@@ -77,10 +77,8 @@ func TestInfo(t *testing.T) {
 				if !strings.Contains(output, "hello") {
 					t.Errorf("Info() output = %q, want to contain %q", output, "hello")
 				}
-			} else {
-				if output != "" {
-					t.Errorf("Info() produced output %q, expected no logs", output)
-				}
+			} else if output != "" {
+				t.Errorf("Info() produced output %q, expected no logs", output)
 			}
 		})
 	}
@@ -124,10 +122,8 @@ func TestInfof(t *testing.T) {
 				if !strings.Contains(output, "42") || !strings.Contains(output, "test") {
 					t.Errorf("Infof() output = %q, want to contain formatted message", output)
 				}
-			} else {
-				if output != "" {
-					t.Errorf("Infof() produced output %q, expected no logs", output)
-				}
+			} else if output != "" {
+				t.Errorf("Infof() produced output %q, expected no logs", output)
 			}
 		})
 	}
@@ -168,10 +164,8 @@ func TestInfoln(t *testing.T) {
 				if !strings.Contains(output, "test") {
 					t.Errorf("Infoln() output = %q, want to contain %q", output, "test")
 				}
-			} else {
-				if output != "" {
-					t.Errorf("Infoln() produced output %q, expected no logs", output)
-				}
+			} else if output != "" {
+				t.Errorf("Infoln() produced output %q, expected no logs", output)
 			}
 		})
 	}
